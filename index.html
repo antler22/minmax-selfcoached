@@ -439,10 +439,15 @@ function deloadAdvice(){
   return null;
 }
 
-/* Build today's exercise list, applying tier cuts from readiness + time cap. */
-function buildSession(dayKey, week, band){
+/* Build today's exercise list.
+   Being short on TIME and being short on RECOVERY are different problems and get
+   different answers. Low time cuts breadth only — you still push the lifts you do,
+   and arguably harder. Low readiness cuts breadth *and* effort. */
+function buildSession(dayKey, week, band, short){
   const day = PROGRAM[dayKey];
-  const cut = band==="red" ? "red" : (band==="yellow" || week===7) ? "trim" : "full";
+  const cut = band==="red" ? "red"
+            : (band==="yellow" || week===7) ? "trim"
+            : short ? "time" : "full";
   let list = day.ex.filter(ex=> cut==="full" ? true : ex.tier==="A");
   return list.map(ex=>{
     let sets = ex.sets, rirAdj = 0;
@@ -526,7 +531,7 @@ function vHome(){
       <div class="row sb" style="margin-top:6px"><span class="dim">Full session (all exercises)</span>
         <b class="mono">${estimate(buildSession(dayKey,week,"green"))} min</b></div>
       <div class="row sb" style="margin-top:6px"><span class="dim">Tier A only (essentials)</span>
-        <b class="mono">${estimate(buildSession(dayKey,week,"yellow"))} min</b></div>
+        <b class="mono">${estimate(buildSession(dayKey,week,"green",true))} min</b></div>
       <div class="dim xs" style="margin-top:10px">Tier B work is dropped automatically on deload week, on Yellow/Red days, or any time you tap “short on time” at the start of a session.</div>
     </div>`;
 }
@@ -627,7 +632,7 @@ function vPlan(){
   </div>
   ${DAY_ORDER.map(k=>{
     const d=PROGRAM[k];
-    return `<h2>${esc(d.name)} <span class="dim" style="text-transform:none;letter-spacing:0">— ${estimate(buildSession(k,2,"green"))} min full / ${estimate(buildSession(k,2,"yellow"))} min Tier A</span></h2>
+    return `<h2>${esc(d.name)} <span class="dim" style="text-transform:none;letter-spacing:0">— ${estimate(buildSession(k,2,"green"))} min full / ${estimate(buildSession(k,2,"green",true))} min Tier A</span></h2>
     <div class="card"><div class="scroll"><table>
       <tr><th></th><th>Exercise</th><th>Sets×Reps</th><th>RIR</th><th>Rest</th></tr>
       ${d.ex.map(e=>`<tr class="${e.tier==="B"?"tierB":""}">
@@ -743,15 +748,12 @@ function bind(){
   if(short) short.onclick = ()=>{ ui.short = !ui.short; render(); if(ui.rd) showReadiness(); };
 }
 
-/* Readiness decides effort; the time cap decides breadth. Either one can trim
-   the session, but "short on time" must never make it *harder* than readiness allows. */
-function effBand(band){ return (ui.short && band==="green") ? "yellow" : band; }
 
 function showReadiness(){
   const dayKey = DAY_ORDER[S.dayIdx];
   const rd = readiness(ui.ans, dayKey);
   ui.rd = rd;
-  const plan = buildSession(dayKey, S.week, effBand(rd.band));
+  const plan = buildSession(dayKey, S.week, rd.band, ui.short);
   const b = rd.band==="green"?"g":rd.band==="yellow"?"w":"r";
   $("#rdout").innerHTML = `<div class="card" style="margin-top:14px;background:var(--card2)">
     <span class="badge b-${b}">${esc(rd.label)}</span>
@@ -768,7 +770,7 @@ function showReadiness(){
 
 function start(){
   const dayKey = DAY_ORDER[S.dayIdx];
-  const plan = buildSession(dayKey, S.week, effBand(ui.rd.band));
+  const plan = buildSession(dayKey, S.week, ui.rd.band, ui.short);
   S.active = { day:dayKey, week:S.week, date:Date.now(), readiness:ui.rd, short:!!ui.short, idx:0, entries:{},
                plan: plan.map(p=>({exId:p.ex.id, sets:p.sets, rirAdj:p.rirAdj, loadMul:p.loadMul})) };
   save(); ui.ans=null; ui.ansI=null; ui.rd=null; ui.short=false; go("session");
