@@ -295,9 +295,11 @@ const DEF = {
   week:1, dayIdx:0, sessions:[], active:null
 };
 
+const GUESTS = ["Lacy","Alex","Dad","Cory"];
 function profiles(){
-  try{ const r=JSON.parse(localStorage.getItem(PKEY)); if(r&&r.list?.length) return r; }catch(e){}
-  return { list:["Nick"], cur:"Nick" };
+  try{ const r=JSON.parse(localStorage.getItem(PKEY));
+       if(r&&r.list?.length){ GUESTS.forEach(g=>{ if(!r.list.includes(g)) r.list.push(g); }); return r; } }catch(e){}
+  return { list:["Nick",...GUESTS], cur:"Nick" };
 }
 let P = profiles();
 function saveProfiles(){ localStorage.setItem(PKEY, JSON.stringify(P)); }
@@ -538,9 +540,10 @@ function go(v){ view=v; render(); window.scrollTo(0,0); }
 
 function render(){
   const a = $("#app");
-  a.innerHTML = ({home:vHome, session:vSession, wrap:vWrap, history:vHistory, plan:vPlan, settings:vSettings}[view]||vHome)();
+  a.innerHTML = ({home:vHome, session:vSession, wrap:vWrap, history:vHistory,
+                  edit:vEdit, plan:vPlan, settings:vSettings}[view]||vHome)();
   $("#nav").innerHTML = [["home","🏠","Today"],["plan","📋","Plan"],["history","📈","History"],["settings","⚙️","Settings"]]
-    .map(([v,i,l])=>`<button class="${view===v||(["session","wrap"].includes(view)&&v==="home")?"on":""}" onclick="go('${v}')"><span class="ic">${i}</span>${l}</button>`).join("");
+    .map(([v,i,l])=>`<button class="${view===v||(["session","wrap"].includes(view)&&v==="home")||(view==="edit"&&v==="history")?"on":""}" onclick="go('${v}')"><span class="ic">${i}</span>${l}</button>`).join("");
   bind();
 }
 
@@ -752,17 +755,149 @@ function vHistory(){
       <td class="mono">${p.e1>0?Math.round(p.e1):"—"}</td></tr>`;
   }).join("")}</table></div>
   ${Object.values(prs).some(p=>p.bw)&&!bw?`<div class="xs dim" style="margin-top:10px">Set your bodyweight in Settings so pull-up numbers count properly.</div>`:""}</div>
+  <h2>Trend</h2>
+  ${vTrend()}
   <h2>Sessions</h2>
+  <div class="xs dim" style="margin:-4px 0 8px">Tap a session to correct anything you mis-logged.</div>
   ${done.map(s=>{
     const n = Object.values(s.entries||{}).flat().filter(x=>x&&x.reps>0).length;
     const b = s.readiness?.band||"green";
-    return `<div class="card"><div class="row sb">
+    const idx = S.sessions.indexOf(s);
+    return `<div class="card" style="cursor:pointer" onclick="openSession(${idx})"><div class="row sb">
       <div><b>${esc(PROGRAM[s.day].name)}</b> <span class="dim sm">· Week ${s.week}</span>
         <div class="dim xs">${new Date(s.date).toLocaleDateString()} · ${n} sets${s.mins?` · ${s.mins} min`:""}</div></div>
-      <span class="badge b-${b==="green"?"g":b==="yellow"?"w":"r"}">${esc(b)}</span></div>
+      <div class="row" style="gap:8px"><span class="badge b-${b==="green"?"g":b==="yellow"?"w":"r"}">${esc(b)}</span>
+        <span class="dim">›</span></div></div>
       ${s.note?`<div class="sm dim" style="margin-top:8px">${esc(s.note)}</div>`:""}</div>`;
   }).join("")}
   <button class="wide ghost" style="margin-bottom:24px" onclick="exportCSV()">Export CSV for Sheets</button>`;
+}
+
+/* ---- per-exercise trend ---- */
+function trendData(exId){
+  let ex; DAY_ORDER.forEach(d=>{const f=findEx(d,exId); if(f)ex=f;});
+  const bw = ex&&ex.bw ? (S.settings.bodyweight||0) : 0;
+  return S.sessions.filter(s=>s.done && s.entries?.[exId]).map(s=>{
+    const sets=(s.entries[exId]||[]).filter(x=>x&&x.reps>0);
+    if(!sets.length) return null;
+    const best=sets.reduce((a,x)=> (x.weight+bw)*(1+x.reps/30) > (a.weight+bw)*(1+a.reps/30) ? x : a);
+    return { week:s.week, date:s.date, e1:Math.round((best.weight+bw)*(1+best.reps/30)),
+             w:best.weight, r:best.reps, sub:submaximal(s) };
+  }).filter(Boolean);
+}
+
+function vTrend(){
+  const ids=[...new Set(S.sessions.flatMap(s=>Object.keys(s.entries||{})))]
+    .filter(id=>trendData(id).length>0);
+  if(!ids.length) return `<div class="card dim sm">Log a couple of sessions and your strength curve shows up here.</div>`;
+  const sel = ui.trendEx && ids.includes(ui.trendEx) ? ui.trendEx : ids[0];
+  let ex; DAY_ORDER.forEach(d=>{const f=findEx(d,sel); if(f)ex=f;});
+  const d = trendData(sel);
+
+  const W=320,H=130,PADL=34,PADB=20,PADT=10;
+  const vals=d.map(p=>p.e1), lo=Math.min(...vals), hi=Math.max(...vals);
+  const span=(hi-lo)||1, min=lo-span*0.15, max=hi+span*0.15;
+  const x=i=> d.length<2 ? PADL+(W-PADL)/2 : PADL+i*(W-PADL-6)/(d.length-1);
+  const y=v=> PADT+(H-PADT-PADB)*(1-(v-min)/(max-min));
+  const line=d.map((p,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(p.e1).toFixed(1)}`).join("");
+  const area=d.length>1?`${line}L${x(d.length-1).toFixed(1)},${H-PADB}L${PADL},${H-PADB}Z`:"";
+  const first=d[0].e1, last=d[d.length-1].e1, chg=last-first;
+  const pct=first?Math.round(chg/first*100):0;
+
+  return `<div class="card">
+    <div class="chips" style="margin-bottom:12px">${ids.map(id=>{
+      let e; DAY_ORDER.forEach(dd=>{const f=findEx(dd,id); if(f)e=f;});
+      return `<button class="chip trex ${id===sel?"on":""}" data-ex="${id}">${esc(e?exName(e):id)}</button>`;
+    }).join("")}</div>
+    <div class="row sb" style="align-items:flex-end">
+      <div><div class="xs dim">Best est. 1RM</div><div class="big mono">${last}<span class="dim" style="font-size:15px"> lb</span></div></div>
+      <div style="text-align:right"><div class="xs dim">Since first session</div>
+        <div style="font-size:17px;font-weight:700;color:${chg>0?"var(--acc)":chg<0?"var(--bad)":"var(--dim)"}">
+          ${chg>0?"+":""}${chg} lb${first?` (${chg>0?"+":""}${pct}%)`:""}</div></div>
+    </div>
+    <div class="scroll"><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;margin-top:10px;overflow:visible">
+      ${[min,(min+max)/2,max].map(v=>`<line x1="${PADL}" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"
+          stroke="var(--line)" stroke-width="1"/>
+        <text x="${PADL-6}" y="${(y(v)+4).toFixed(1)}" fill="var(--dim)" font-size="9" text-anchor="end">${Math.round(v)}</text>`).join("")}
+      ${area?`<path d="${area}" fill="var(--blue)" opacity=".10"/>`:""}
+      <path d="${line}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>
+      ${d.map((p,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(p.e1).toFixed(1)}" r="${i===d.length-1?4:3}"
+         fill="${p.sub?"var(--warn)":"var(--blue)"}"><title>Wk ${p.week}: ${p.w}×${p.r} → ${p.e1} lb</title></circle>`).join("")}
+      ${d.map((p,i)=> i===0||i===d.length-1||d.length<6
+        ? `<text x="${x(i).toFixed(1)}" y="${H-6}" fill="var(--dim)" font-size="9" text-anchor="middle">w${p.week}</text>`:"").join("")}
+    </svg></div>
+    <div class="xs dim" style="margin-top:6px">Best set per session, as estimated 1RM${ex&&ex.bw?" (bodyweight included)":""}.
+      ${d.some(p=>p.sub)?`<span style="color:var(--warn)">Amber points are deload or Red-day sessions — deliberately submaximal.</span>`:""}</div>
+  </div>`;
+}
+
+/* ---- edit a past session ---- */
+function openSession(i){ ui.editIdx=i; go("edit"); }
+
+function vEdit(){
+  const s = S.sessions[ui.editIdx];
+  if(!s) return vHistory();
+  const ids = Object.keys(s.entries||{});
+  return `<div class="row sb" style="margin:14px 0 4px">
+      <button class="ghost sm" onclick="go('history')">‹ History</button>
+      <span class="dim sm">${new Date(s.date).toLocaleDateString()}</span></div>
+    <h1>${esc(PROGRAM[s.day].name)} · Week ${s.week}</h1>
+    <div class="xs dim">Corrections here feed straight back into your next weight targets.</div>
+    ${ids.map(id=>{
+      let ex; DAY_ORDER.forEach(d=>{const f=findEx(d,id); if(f)ex=f;});
+      if(!ex) return "";
+      return `<div class="card"><b>${esc(exName(ex))}</b>
+        <div class="xs dim" style="margin-bottom:6px">target ${ex.rep[0]}-${ex.rep[1]} reps</div>
+        ${(s.entries[id]||[]).map((x,k)=> x ? `
+          <div class="setblk">
+            <div class="row sb xs" style="margin-bottom:7px"><b>Set ${k+1}</b>
+              <button class="xs" onclick="delSet(${ui.editIdx},'${id}',${k})" style="padding:4px 9px">Delete</button></div>
+            <div class="setrow" style="grid-template-columns:1fr 1fr">
+              <input type="number" inputmode="decimal" value="${x.weight??""}" data-e="${id}" data-k="${k}" data-f="weight">
+              <input type="number" inputmode="numeric" value="${x.reps??""}" data-e="${id}" data-k="${k}" data-f="reps">
+            </div>
+            <div class="xs dim" style="margin:8px 0 5px">RIR logged: ${x.rir??"—"}</div>
+            <div class="chips">${[0,1,2,3,4].map(v=>
+              `<button class="chip erir ${x.rir===v?"on":""}" data-e="${id}" data-k="${k}" data-rir="${v}">${v}</button>`).join("")}</div>
+          </div>` : "").join("")}
+      </div>`;
+    }).join("")}
+    <button class="pri wide" onclick="saveEdits()">Save corrections</button>
+    <button class="ghost wide" style="margin:8px 0 24px;color:var(--bad)" onclick="delSession(${ui.editIdx})">Delete this session</button>`;
+}
+
+/* Read the weight/reps inputs into state. Must run before ANY re-render of this
+   view — otherwise tapping an RIR chip rebuilds the inputs from stored values and
+   silently throws away whatever you had just typed. */
+function captureEdits(){
+  const s=S.sessions[ui.editIdx]; if(!s) return;
+  document.querySelectorAll("[data-e][data-f]").forEach(inp=>{
+    const e=s.entries[inp.dataset.e], k=+inp.dataset.k;
+    if(!e||!e[k]) return;
+    const v=parseFloat(inp.value);
+    if(!isNaN(v)) e[k][inp.dataset.f] = inp.dataset.f==="reps" ? Math.round(v) : v;
+  });
+  // recompute the missed flag so readiness keeps reading true
+  Object.entries(s.entries).forEach(([id,sets])=>{
+    let ex; DAY_ORDER.forEach(d=>{const f=findEx(d,id); if(f)ex=f;});
+    (sets||[]).forEach(x=>{ if(x&&ex) x.missed = x.reps < ex.rep[0]; });
+  });
+}
+function saveEdits(){
+  captureEdits(); save();
+  if(ghToken()) syncPush(true);
+  go("history");
+}
+function delSet(i,id,k){
+  captureEdits();
+  if(!confirm("Delete this set?")) return;
+  S.sessions[i].entries[id].splice(k,1);
+  if(!S.sessions[i].entries[id].filter(Boolean).length) delete S.sessions[i].entries[id];
+  save(); if(ghToken()) syncPush(true); render();
+}
+function delSession(i){
+  if(!confirm("Delete this entire session? Your weight targets will be recalculated without it.")) return;
+  S.sessions.splice(i,1); save(); if(ghToken()) syncPush(true); go("history");
 }
 
 /* ---- SETTINGS ---- */
@@ -788,13 +923,41 @@ function vSettings(){
       <input type="number" id="wk" min="1" max="12" value="${S.week}" style="width:90px;text-align:center"></div>
     <div class="xs dim" style="margin-top:8px">Advance this yourself once you've done all four days of the week.</div>
   </div>
-  <h2>Your data</h2>
+  <h2>GitHub sync</h2>
+  <div class="card">
+    <div class="sm">${ghToken()
+      ? `<span class="badge b-g">connected</span> <span class="dim">→ ${GH.owner}/${GH.repo} (private)</span>`
+      : `<span class="badge b-w">not set up</span> <span class="dim">your log lives only on this device</span>`}</div>
+    ${S.syncedAt?`<div class="xs dim" style="margin-top:7px">Last synced ${new Date(S.syncedAt).toLocaleString()}</div>`:""}
+    ${S.syncMsg?`<div class="xs" style="margin-top:7px;color:${/fail|reject|Forbid|GitHub \d/.test(S.syncMsg)?"var(--bad)":"var(--dim)"}">${esc(S.syncMsg)}</div>`:""}
+    <input id="ghtok" type="password" autocomplete="off" placeholder="Paste fine-grained token"
+      value="${ghToken()?"••••••••••••••••":""}" style="margin-top:10px">
+    <div class="row" style="gap:8px;margin-top:8px">
+      <button class="grow" onclick="testToken()">Test</button>
+      <button class="grow" onclick="syncPush()">Push now</button>
+      <button class="grow" onclick="syncPull()">Pull</button>
+    </div>
+    ${ghToken()?`<button class="ghost wide xs" style="margin-top:8px" onclick="saveToken('')">Remove token from this device</button>`:""}
+    <details style="margin-top:10px"><summary>How to create the token</summary>
+      <div class="xs dim" style="margin-top:8px;line-height:1.6">
+        1. github.com → Settings → Developer settings → Personal access tokens → <b>Fine-grained tokens</b><br>
+        2. Generate new token. Repository access → <b>Only select repositories</b> → <code>minmax-log</code><br>
+        3. Repository permissions → <b>Contents: Read and write</b><br>
+        4. Generate, copy, paste above. It is stored only in this browser and never committed to either repo.<br><br>
+        Scope it to <code>minmax-log</code> alone — then a stolen token can't touch anything else you own.
+        Never paste it into a chat or an issue.
+      </div></details>
+  </div>
+
+  <h2>Local files</h2>
   <div class="card">
     <button class="wide ghost" onclick="exportJSON()">Download backup (JSON)</button>
     <button class="wide ghost" style="margin-top:8px" onclick="exportCSV()">Download log (CSV → Sheets)</button>
     <button class="wide ghost" style="margin-top:8px" onclick="$('#imp').click()">Restore from backup</button>
     <input type="file" id="imp" accept=".json" style="display:none">
-    <div class="xs dim" style="margin-top:10px">Everything lives in this browser's storage on this device. Download a backup every couple of weeks — clearing site data wipes the log.</div>
+    <div class="xs dim" style="margin-top:10px">${ghToken()
+      ? "With sync on, GitHub holds the real copy — these files are just a convenience."
+      : "Without GitHub sync, this device is the <b>only</b> copy. Clearing site data wipes the log."}</div>
     <div class="hr"></div>
     <button class="wide ghost" style="color:var(--bad)" onclick="wipe()">Erase everything</button>
   </div>
@@ -835,6 +998,14 @@ function bind(){
   };
   // set logging
   document.querySelectorAll(".logset").forEach(b=> b.onclick = ()=> logSet(+b.dataset.set));
+  document.querySelectorAll(".trex").forEach(b=> b.onclick = ()=>{ ui.trendEx=b.dataset.ex; render(); });
+  document.querySelectorAll(".erir").forEach(b=> b.onclick = ()=>{
+    captureEdits();                       // keep any typed weight/reps before re-rendering
+    const s=S.sessions[ui.editIdx], e=s.entries[b.dataset.e];
+    if(e&&e[+b.dataset.k]) e[+b.dataset.k].rir = +b.dataset.rir;
+    save(); render();
+  });
+  const tok=$("#ghtok"); if(tok) tok.onchange = ()=> saveToken(tok.value);
   document.querySelectorAll(".pq").forEach(b=> b.onclick = ()=>{
     ui.post = ui.post||{};
     ui.post[b.dataset.q] = +b.dataset.v; ui.post[b.dataset.q+"_i"] = +b.dataset.i;
@@ -930,6 +1101,7 @@ function saveSession(){
   S.dayIdx = (S.dayIdx+1) % DAY_ORDER.length;
   if(S.dayIdx===0 && S.week<TOTAL_WEEKS) S.week++;
   save(); stopTimer(); go("home");
+  if(ghToken()) syncPush(true).then(ok=>{ if(!ok) render(); });   // fire-and-forget backup
 }
 
 function vWrap(){
@@ -989,22 +1161,110 @@ function dl(name, text, type){
   setTimeout(()=>URL.revokeObjectURL(u),2000);
 }
 function exportJSON(){ dl(`minmax-backup-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(S,null,1), "application/json"); }
-function exportCSV(){
-  const rows=[["Date","Week","Day","Exercise","Set","Weight","Reps","RIR","TargetRIR","RepLow","RepHigh","RestSec","Readiness","Pump","Difficulty","Est1RM"]];
+function csvText(){
+  const rows=[["Profile","Date","Week","Day","Exercise","Set","Weight","Reps","RIR","TargetRIR","RepLow","RepHigh","RestSec","Readiness","Pump","Difficulty","Est1RM"]];
   S.sessions.filter(s=>s.done).forEach(s=>Object.entries(s.entries||{}).forEach(([id,sets])=>{
     const ex=findEx(s.day,id); if(!ex) return;
     (sets||[]).forEach((x,k)=>{ if(!x||!x.reps) return;
       const load = x.weight + (ex.bw ? (S.settings.bodyweight||0) : 0);
-      rows.push([new Date(s.date).toISOString().slice(0,10), s.week, PROGRAM[s.day].name, exName(ex),
+      rows.push([P.cur, new Date(s.date).toISOString().slice(0,10), s.week, PROGRAM[s.day].name, exName(ex),
         k+1, x.weight, x.reps, x.rir, rirFor(ex,s.week,k), ex.rep[0], ex.rep[1],
         x.rest??"", s.readiness?.band||"", s.post?.pump??"", s.post?.diff??"",
         Math.round(load*(1+x.reps/30))]);
     });
   }));
-  dl(`minmax-log-${new Date().toISOString().slice(0,10)}.csv`,
-     rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"), "text/csv");
+  return rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+}
+function exportCSV(){
+  dl(`minmax-${P.cur}-${new Date().toISOString().slice(0,10)}.csv`, csvText(), "text/csv");
 }
 function unsub(id){ delete S.settings.subs[id]; save(); render(); }
+
+/* ---------- 6. GITHUB SYNC ------------------------------------------------
+   localStorage is a cache; this repo is the source of truth. Clearing site data,
+   switching phones or a browser evicting storage no longer costs you the log.
+
+   The token lives ONLY in this browser under its own key and is never written to
+   either repo. The app repo has to be public for GitHub Pages, so the data goes to
+   a separate PRIVATE repo — your training history isn't public just because the
+   code is. Use a fine-grained token scoped to minmax-log alone; then the worst a
+   stolen token can do is touch that one repo.
+-------------------------------------------------------------------------- */
+const TKEY = "minmax_gh_token";
+const GH = { owner:"antler22", repo:"minmax-log" };
+const ghToken = () => localStorage.getItem(TKEY) || "";
+const b64 = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+const unb64 = s => new TextDecoder().decode(Uint8Array.from(atob(s), c=>c.charCodeAt(0)));
+
+async function ghApi(path, opts={}){
+  const t = ghToken();
+  if(!t) throw new Error("No GitHub token saved. Add one in Settings.");
+  const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/${path}`, {
+    ...opts, headers:{ Authorization:`Bearer ${t}`, Accept:"application/vnd.github+json",
+                       "Content-Type":"application/json", ...(opts.headers||{}) }});
+  if(r.status===404 && opts.method!=="PUT") return null;
+  if(!r.ok){
+    const msg = (await r.json().catch(()=>({}))).message || r.statusText;
+    throw new Error(r.status===401 ? "Token rejected (401). It may be expired or lack Contents: write."
+                  : r.status===403 ? "Forbidden (403). Check the token is scoped to the minmax-log repo."
+                  : `GitHub ${r.status}: ${msg}`);
+  }
+  return r.json();
+}
+
+async function ghPut(path, text, sha){
+  return ghApi(`contents/${path}`, { method:"PUT", body:JSON.stringify({
+    message:`Update ${path} — ${new Date().toISOString().slice(0,16).replace("T"," ")}`,
+    content:b64(text), ...(sha?{sha}:{}) })});
+}
+async function ghGet(path){
+  const r = await ghApi(`contents/${path}`);
+  return r ? { text:unb64(r.content), sha:r.sha } : null;
+}
+
+const csvPath  = p => `logs/${p}.csv`;
+const jsonPath = p => `logs/${p}.json`;
+
+/* Push the active profile: CSV for reading, JSON for lossless restore. */
+async function syncPush(quiet){
+  const setSt = m => { S.syncMsg=m; if(!quiet) render(); };
+  try{
+    setSt("Pushing…");
+    const csv  = csvText();
+    const json = JSON.stringify({...S, syncMsg:undefined}, null, 1);
+    for(const [path,body] of [[csvPath(P.cur),csv],[jsonPath(P.cur),json]]){
+      const cur = await ghGet(path);
+      await ghPut(path, body, cur?.sha);
+    }
+    S.syncedAt = Date.now(); S.syncMsg = null; save(); if(!quiet) render();
+    return true;
+  }catch(e){ setSt("Sync failed: "+e.message); save(); return false; }
+}
+
+/* Pull the active profile back from the repo, replacing local state. */
+async function syncPull(){
+  if(S.sessions.length && !confirm(`Replace ${P.cur}'s local log with the copy on GitHub? Anything not yet pushed is lost.`)) return;
+  S.syncMsg="Pulling…"; render();
+  try{
+    const f = await ghGet(jsonPath(P.cur));
+    if(!f){ S.syncMsg=`No saved log on GitHub for ${P.cur} yet.`; render(); return; }
+    const r = JSON.parse(f.text);
+    S = {...DEF, ...r, settings:{...DEF.settings, ...(r.settings||{})}};
+    S.syncedAt = Date.now(); S.syncMsg = null; save(); ui={}; go("home");
+  }catch(e){ S.syncMsg="Pull failed: "+e.message; render(); }
+}
+
+function saveToken(v){
+  const t=(v||"").trim();
+  if(t) localStorage.setItem(TKEY,t); else localStorage.removeItem(TKEY);
+  render();
+}
+async function testToken(){
+  S.syncMsg="Checking…"; render();
+  try{ await ghApi(""); S.syncMsg="Token works — connected to "+GH.repo; }
+  catch(e){ S.syncMsg=e.message; }
+  render();
+}
 function wipe(){ if(confirm(`Erase all sessions, settings and history for ${P.cur}? This cannot be undone.`)){
   localStorage.removeItem(KEY(P.cur)); S=structuredClone(DEF); go("home"); } }
 
