@@ -1,0 +1,867 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1117">
+<title>Min-Max — Self-Coached</title>
+
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0d1117; --card:#161b22; --card2:#1c2330; --line:#2a3441;
+  --tx:#e6edf3; --dim:#8b98a5; --acc:#3fb950; --warn:#d29922; --bad:#f85149;
+  --blue:#58a6ff; --pad:14px;
+}
+html,body{margin:0;background:var(--bg);color:var(--tx);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  overscroll-behavior-y:contain}
+body{padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 76px)}
+#app{max-width:620px;margin:0 auto;padding:0 var(--pad)}
+h1{font-size:20px;margin:16px 0 4px} h2{font-size:15px;margin:22px 0 8px;color:var(--dim);
+  text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:var(--pad);margin:10px 0}
+.row{display:flex;gap:10px;align-items:center}
+.row.sb{justify-content:space-between}
+.grow{flex:1}
+.dim{color:var(--dim)} .sm{font-size:13px} .xs{font-size:12px}
+.big{font-size:34px;font-weight:700;line-height:1.1}
+.mono{font-variant-numeric:tabular-nums}
+button{font:inherit;color:var(--tx);background:var(--card2);border:1px solid var(--line);
+  border-radius:10px;padding:12px 14px;cursor:pointer;transition:.12s}
+button:active{transform:scale(.97)}
+button.pri{background:var(--acc);border-color:var(--acc);color:#08130b;font-weight:700}
+button.ghost{background:transparent}
+button.wide{width:100%;display:block}
+button:disabled{opacity:.4}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:10px 12px;border-radius:9px;background:var(--card2);border:1px solid var(--line);
+  font-size:14px;cursor:pointer;flex:1;text-align:center;min-width:60px}
+.chip.on{background:var(--blue);border-color:var(--blue);color:#04121f;font-weight:700}
+.chip.on.g{background:var(--acc);border-color:var(--acc);color:#08130b}
+.chip.on.w{background:var(--warn);border-color:var(--warn);color:#1a1204}
+.chip.on.r{background:var(--bad);border-color:var(--bad);color:#fff}
+input,select{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--line);
+  border-radius:9px;padding:11px;width:100%}
+input[type=number]{-moz-appearance:textfield}
+.badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;
+  letter-spacing:.04em;text-transform:uppercase}
+.b-g{background:rgba(63,185,80,.16);color:var(--acc)}
+.b-w{background:rgba(210,153,34,.18);color:var(--warn)}
+.b-r{background:rgba(248,81,73,.18);color:var(--bad)}
+.b-b{background:rgba(88,166,255,.16);color:var(--blue)}
+.b-d{background:rgba(139,152,165,.15);color:var(--dim)}
+nav{position:fixed;bottom:0;left:0;right:0;background:#11161ded;backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom))}
+nav button{flex:1;background:none;border:none;font-size:11px;color:var(--dim);padding:6px 2px;
+  display:flex;flex-direction:column;gap:3px;align-items:center}
+nav button.on{color:var(--blue)}
+nav .ic{font-size:19px;line-height:1}
+.setrow{display:grid;grid-template-columns:26px 1fr 1fr 1fr auto;gap:7px;align-items:center;margin:8px 0}
+.setrow input,.setrow select{padding:11px 6px;text-align:center;font-size:15px}
+.setrow .n{color:var(--dim);font-size:13px;text-align:center}
+.setrow.done input,.setrow.done select{opacity:.5}
+.dots{display:flex;gap:5px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.dot.on{background:var(--acc)} .dot.cur{background:var(--blue);transform:scale(1.4)}
+.timer{position:fixed;left:0;right:0;bottom:calc(72px + env(safe-area-inset-bottom));
+  background:var(--blue);color:#04121f;padding:12px var(--pad);display:none;
+  align-items:center;gap:12px;font-weight:700;z-index:5}
+.timer.on{display:flex}
+.hr{height:1px;background:var(--line);margin:14px 0}
+.tech{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.35);border-radius:9px;
+  padding:11px;font-size:13px;margin:10px 0}
+.coach{background:rgba(88,166,255,.09);border-left:3px solid var(--blue);border-radius:0 8px 8px 0;
+  padding:11px 12px;font-size:14px;margin:10px 0}
+.tierB{opacity:.75}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:7px 5px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.scroll{overflow-x:auto}
+details summary{cursor:pointer;color:var(--dim);font-size:13px;padding:6px 0}
+</style>
+
+<div id="app"></div>
+<div class="timer" id="timer"></div>
+<nav id="nav"></nav>
+
+<script>
+/* ============================================================================
+   MIN-MAX SELF-COACHED  —  Nippard Min-Max Phase 2 skeleton
+                            + RP autoregulation  + your barbell anchors
+   Everything is data-driven. To tweak a workout, edit PROGRAM below.
+   ========================================================================== */
+
+/* ---------- 1. PROGRAM DEFINITION -----------------------------------------
+   Nippard's Min-Max Phase 2 never changes set counts across the 12 weeks.
+   It progresses ONLY by RIR + (in Block 2) intensity techniques:
+     wk 1      = intro      -> "easy" RIR
+     wk 2-6    = Block 1    -> "hard" RIR
+     wk 7      = deload     -> "easy" RIR (+ we drop Tier-B work)
+     wk 8-12   = Block 2    -> "hard" RIR + intensity technique
+   Each exercise below carries the exact RIR schedule of the Nippard exercise
+   it replaces, so the progression logic is preserved through the swaps.
+
+   tier: "A" = never cut.  "B" = dropped automatically when time is short,
+         on deload week, or when readiness is YELLOW/RED.
+   inc:  load increment in lb when you earn a jump.
+   pair: this is the high-rep back-off set of the exercise above it.
+--------------------------------------------------------------------------- */
+
+const T = {
+  myo:  ["Myo-reps","Take the set to RIR 0. Rack it, rest 20 sec, then do 3-5 more reps. "+
+         "Repeat (20 sec rest + mini-set) for 3-5 clusters, or stop when you can't get 3 clean reps."],
+  drop2:["Two Drop Sets","At RIR 0, immediately strip ~25% of the load and go to failure again. "+
+         "Strip ~25% one more time and go to failure a third time. No rest between drops."],
+  hold: ["Weighted Static Hold","After your last rep, hold the stretched position under load for 30 seconds."]
+};
+
+// rir: {e:[...easy week 1/7], h:[...hard weeks 2-6 & 8-12]} — one entry per working set
+const PROGRAM = {
+  upper: { name:"Upper", muscles:["chest","back","delts","biceps","triceps"], ex:[
+    {id:"bench",   n:"Barbell Bench Press", tier:"A", sets:2, rep:[4,6],  rest:180, inc:5, warm:"2-3",
+     rir:{e:[1,2],h:[0,0]}, src:"Machine Chest Press",
+     subs:["Smith Machine Bench Press","DB Bench Press","Machine Chest Press"],
+     note:"1 second pause at the bottom of every rep, keeping tension on the pecs."},
+    {id:"bench20", n:"Barbell Bench Press — Back-off", tier:"B", pair:"bench", sets:1, rep:[20,20], rest:180, inc:5, warm:"0",
+     rir:{e:[1],h:[0]}, src:"Machine Chest Press 1x20",
+     subs:["DB Bench Press","Push-Up (to failure)"],
+     note:"Strip to roughly 40-45% of your top-set weight and chase 20."},
+
+    {id:"row_u",   n:"Chest-Supported DB Row", tier:"A", sets:2, rep:[6,8], rest:180, inc:5, warm:"1-2",
+     rir:{e:[1,2],h:[0,0]}, tech:"myo", src:"Chest-Supported T-Bar Row",
+     subs:["Barbell Row","Chest-Supported T-Bar Row","1-Arm DB Row"],
+     note:"Flare elbows ~45 degrees and squeeze the shoulder blades hard at the top."},
+
+    {id:"pullover",n:"DB Lat Pullover", tier:"B", sets:1, rep:[8,10], rest:90, inc:5, warm:"1-2",
+     rir:{e:[0],h:[0]}, src:"Machine Lat Pullover",
+     subs:["Cable Lat Pullover","Machine Lat Pullover"],
+     note:"Smooth and controlled. Deep stretch in the lats at the top of each rep."},
+    {id:"pullover20",n:"DB Lat Pullover — Back-off", tier:"B", pair:"pullover", sets:1, rep:[20,20], rest:90, inc:5, warm:"0",
+     rir:{e:[0],h:[0]}, src:"Machine Lat Pullover 1x20", subs:["Cable Lat Pullover"], note:""},
+
+    {id:"flye_u",  n:"DB Flye", tier:"B", sets:2, rep:[10,12], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1],h:[0,0]}, tech:"myo", src:"Pec Deck",
+     subs:["Pec Deck","Cable Flye"],
+     note:"Pause 1 second at the bottom while keeping tension on the pecs."},
+
+    {id:"yraise",  n:"Incline DB Y-Raise", tier:"A", sets:3, rep:[10,12], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1,1],h:[0,0,0]}, src:"Incline DB Y-Raise",
+     subs:["Cable Y-Raise","DB Lateral Raise"],
+     note:"30 degree incline bench, chest supported. Lift up and out in a Y shape."},
+
+    {id:"cheatcurl",n:"EZ-Bar Cheat Curl", tier:"A", ss:"S1", sets:2, rep:[4,6], rest:0, inc:5, warm:"1",
+     rir:{e:[0,1],h:[0,0]}, src:"S1: EZ-Bar Cheat Curl",
+     subs:["DB Cheat Curl","Barbell Curl"],
+     note:"Use some momentum up — but control the negative hard."},
+    {id:"skull",   n:"EZ-Bar Skull Crusher", tier:"A", ss:"S1", sets:2, rep:[6,8], rest:60, inc:5, warm:"1",
+     rir:{e:[0,1],h:[0,0]}, src:"S1: EZ-Bar Skull Crusher",
+     subs:["DB Skull Crusher","Overhead Cable Triceps Extension"],
+     note:"Deep triceps stretch through the whole negative. Pause 1 sec in the stretch."}
+  ]},
+
+  lower: { name:"Lower", muscles:["hamstrings","quads","calves","glutes"], ex:[
+    {id:"legcurl", n:"Lying Leg Curl", tier:"A", sets:3, rep:[6,8], rest:90, inc:5, warm:"1-2",
+     rir:{e:[0,1,1],h:[0,0,0]}, tech:"drop2", src:"Seated Leg Curl",
+     subs:["Seated Leg Curl","Nordic Ham Curl","DB Leg Curl"],
+     note:"If seated: lean forward over the machine for maximum hamstring stretch."},
+
+    {id:"squat",   n:"Barbell Back Squat", tier:"A", sets:2, rep:[4,6], rest:240, inc:10, warm:"2-3",
+     rir:{e:[2,3],h:[1,2]}, src:"Hack Squat",
+     subs:["Hack Squat","Smith Machine Squat","Leg Press","Front Squat"],
+     note:"Controlled negative — don't free-fall — then explode up. Full depth."},
+
+    {id:"legext",  n:"Leg Extension", tier:"A", sets:2, rep:[6,8], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1],h:[0,0]}, src:"Leg Extension",
+     subs:["Reverse Nordic","Sissy Squat"],
+     note:"Seat back as far as is comfortable. Grip the handles hard to pin your hips down."},
+    {id:"legext20",n:"Leg Extension — Back-off", tier:"B", pair:"legext", sets:1, rep:[20,20], rest:90, inc:5, warm:"0",
+     rir:{e:[1],h:[0]}, src:"Leg Extension 1x20", subs:["Reverse Nordic"], note:""},
+
+    {id:"lunge",   n:"DB Walking Lunge", tier:"B", sets:1, rep:[10,10], rest:90, inc:5, warm:"0-1", perLeg:true,
+     rir:{e:[1],h:[0]}, src:"DB Walking Lunge",
+     subs:["DB Reverse Lunge","Bulgarian Split Squat"],
+     note:"10 per leg. Medium strides. Minimise push from the back leg."},
+
+    {id:"calf",    n:"Standing Calf Raise", tier:"A", sets:3, rep:[10,12], rest:90, inc:10, warm:"0-1",
+     rir:{e:[0,1,1],h:[0,0,0]}, tech:"hold", src:"Standing Calf Raise",
+     subs:["Leg Press Calf Press","Smith Machine Calf Raise","Single-Leg DB Calf Raise"],
+     note:"1-2 sec pause at the bottom. Roll through the ball of the foot, don't just bounce up."},
+
+    {id:"goodmorn",n:"Good Morning", tier:"B", sets:1, rep:[30,30], rest:90, inc:5, warm:"0-1",
+     rir:{e:[1],h:[0]}, src:"Glute Kickback",
+     subs:["45° Hyperextension","Cable Pull-Through","DB Romanian Deadlift"],
+     note:"Light. This is a high-rep glute/lower-back/hamstring finisher — 30 reps."}
+  ]},
+
+  push: { name:"Push", muscles:["delts","chest","triceps","quads"], ex:[
+    {id:"ohp",     n:"Seated DB Shoulder Press", tier:"A", sets:2, rep:[4,6], rest:180, inc:5, warm:"2-3",
+     rir:{e:[1,2],h:[0,1]}, tech:"drop2", src:"Machine Shoulder Press",
+     subs:["Seated Smith Machine Shoulder Press","Standing Barbell OHP","Machine Shoulder Press"],
+     note:"Break at least 90 degrees at the elbow. Smooth and controlled — feel the delts."},
+
+    {id:"dbbench", n:"DB Bench Press", tier:"A", sets:1, rep:[10,10], rest:180, inc:5, warm:"2-3",
+     rir:{e:[1],h:[0]}, src:"DB Bench Press",
+     subs:["Barbell Bench Press","Machine Chest Press"],
+     note:"1 second pause at the bottom, tension on the pecs."},
+    {id:"dbbench20",n:"DB Bench Press — Back-off", tier:"B", pair:"dbbench", sets:1, rep:[20,20], rest:180, inc:5, warm:"0",
+     rir:{e:[1],h:[0]}, src:"DB Bench Press 1x20", subs:["Push-Up (to failure)"], note:""},
+
+    {id:"slext",   n:"Single-Leg Leg Extension", tier:"B", sets:1, rep:[20,20], rest:90, inc:5, warm:"0-1", perLeg:true,
+     rir:{e:[1],h:[0]}, src:"Single-Leg Leg Extension",
+     subs:["Reverse Nordic","Sissy Squat"],
+     note:"20 per leg. Nippard's extra weekly quad hit — cheap volume, keep it if you have time."},
+
+    {id:"lat",     n:"DB Lateral Raise", tier:"A", sets:1, rep:[10,10], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0],h:[0]}, src:"Machine Lateral Raise",
+     subs:["Cable Lateral Raise","Machine Lateral Raise"],
+     note:"Resist the negative on every rep. Do not pause at the bottom."},
+    {id:"lat20",   n:"DB Lateral Raise — Back-off", tier:"A", pair:"lat", sets:1, rep:[20,20], rest:90, inc:5, warm:"0",
+     rir:{e:[0],h:[0]}, src:"Machine Lateral Raise 1x20",
+     subs:["Cable Lateral Raise"],
+     note:"Drop to roughly half the weight and chase 20. This pair IS your side-delt volume."},
+
+    {id:"flye_p",  n:"DB Flye", tier:"B", sets:2, rep:[10,12], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1],h:[0,0]}, tech:"drop2", src:"Cable Flye",
+     subs:["Cable Flye","Pec Deck"],
+     note:"Focus on a deep stretch in the pecs at the bottom of every rep."},
+
+    {id:"pressdown",n:"Cable Triceps Pressdown", tier:"A", sets:2, rep:[4,6], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1],h:[0,0]}, tech:"myo", src:"Triceps Pressdown",
+     subs:["Overhead Cable Triceps Extension","DB Skull Crusher","Close-Grip Push-Up"],
+     note:"Rope or straight bar, whichever is comfortable. Heavy for a pressdown — 4-6 reps."}
+  ]},
+
+  pull: { name:"Pull", muscles:["back","hamstrings","rear delts","biceps","abs"], ex:[
+    {id:"pullup",  n:"Pull-Up (Wide Grip)", tier:"A", sets:3, rep:[4,6], rest:180, inc:5, warm:"1-2", bw:true,
+     rir:{e:[1,2,2],h:[0,1,1]}, src:"Pull-Up (Wide Grip)",
+     subs:["Lat Pulldown (Wide Grip)","Assisted Pull-Up"],
+     note:"Slow 2-3 second negative. Feel the lats pulling apart on the way down. Log added weight only (0 = bodyweight)."},
+
+    {id:"rdl",     n:"Barbell Romanian Deadlift", tier:"A", sets:2, rep:[6,8], rest:180, inc:10, warm:"2-3",
+     rir:{e:[2,3],h:[1,2]}, src:"Stiff-Leg Deadlift",
+     subs:["Stiff-Leg Deadlift","DB RDL","Conventional Deadlift"],
+     note:"Flat back, only a slight bend in the knees. Push the hips back, feel the hamstrings."},
+
+    {id:"pulldown",n:"Close-Grip Lat Pulldown", tier:"A", sets:1, rep:[10,10], rest:180, inc:10, warm:"1-2",
+     rir:{e:[1],h:[0]}, src:"Close-Grip Lat Pulldown",
+     subs:["Close-Grip Pull-Up","Close-Grip Seated Cable Row"],
+     note:"Lean back ~15 degrees, drive elbows down, squeeze the shoulder blades. Lats + mid-traps."},
+    {id:"pulldown20",n:"Close-Grip Lat Pulldown — Back-off", tier:"B", pair:"pulldown", sets:1, rep:[20,20], rest:180, inc:10, warm:"0",
+     rir:{e:[1],h:[0]}, src:"Close-Grip Lat Pulldown 1x20", subs:["Close-Grip Seated Cable Row"], note:""},
+
+    {id:"row_p",   n:"Barbell Row", tier:"A", sets:2, rep:[4,6], rest:180, inc:5, warm:"1-2",
+     rir:{e:[1,1],h:[0,0]}, tech:"myo", src:"Chest-Supported Machine Row",
+     subs:["Chest-Supported DB Row","Smith Machine Row","1-Arm DB Row"],
+     note:"Elbows ~45 degrees out. Squeeze the shoulder blades together hard at the top."},
+
+    {id:"revflye", n:"Reverse DB Flye", tier:"A", sets:1, rep:[20,20], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0],h:[0]}, src:"1-Arm Reverse Pec Deck",
+     subs:["Cable Face Pull","Reverse Cable Crossover","Reverse Pec Deck"],
+     note:"Sweep the weight out to trace the biggest semi-circle you can with your arm."},
+    {id:"revflye10",n:"Reverse DB Flye — Heavy", tier:"B", pair:"revflye", sets:1, rep:[10,10], rest:90, inc:5, warm:"0",
+     rir:{e:[0],h:[0]}, src:"1-Arm Reverse Pec Deck 1x10", subs:["Cable Face Pull"], note:"Heavier for 10 after the 20."},
+
+    {id:"hammer",  n:"DB Hammer Curl", tier:"A", sets:2, rep:[6,8], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1],h:[0,0]}, tech:"myo", src:"Preacher Hammer Curl",
+     subs:["Preacher Hammer Curl","DB Preacher Curl","Cable Hammer Curl"],
+     note:"Smooth, controlled reps. No swinging on this one."},
+
+    {id:"crunch",  n:"Cable Crunch", tier:"B", sets:2, rep:[6,8], rest:90, inc:5, warm:"0-1",
+     rir:{e:[0,1],h:[0,0]}, tech:"drop2", src:"Cable Crunch",
+     subs:["Weighted Crunch","Machine Crunch","Weighted Decline Sit-Up"],
+     note:"Round the lower back as you crunch. Keep a hard mind-muscle connection with the abs."}
+  ]}
+};
+
+const DAY_ORDER = ["upper","lower","push","pull"];
+const TOTAL_WEEKS = 12;
+
+const weekKind = w => w===1 ? "intro" : w===7 ? "deload" : w<=6 ? "block1" : "block2";
+const isEasyWeek = w => w===1 || w===7;
+const blockOf    = w => w<=7 ? 1 : 2;
+
+/* ---------- 2. STATE / PERSISTENCE --------------------------------------- */
+
+const KEY = "minmax_v1";
+const DEF = {
+  settings:{ unit:"lb", timeCap:45, subs:{}, bwOverride:{} },
+  week:1, dayIdx:0, sessions:[], active:null, bw:[]
+};
+let S = load();
+
+function load(){
+  try{ const r = JSON.parse(localStorage.getItem(KEY)); if(r&&r.settings) return {...DEF,...r,settings:{...DEF.settings,...r.settings}}; }
+  catch(e){ console.warn("load failed",e); }
+  return structuredClone(DEF);
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+
+// display name honours any substitution you've chosen
+const exName = ex => S.settings.subs[ex.id] || ex.n;
+
+/* ---------- 3. COACHING ENGINE ------------------------------------------- */
+
+// RIR prescribed for a given exercise/set/week (inherits the Nippard schedule)
+function rirFor(ex, week, setIdx){
+  const a = isEasyWeek(week) ? ex.rir.e : ex.rir.h;
+  return a[Math.min(setIdx, a.length-1)];
+}
+// Intensity technique only exists in Block 2 (weeks 8-12), on the last set
+function techFor(ex, week){ return (blockOf(week)===2 && week!==7 && ex.tech) ? ex.tech : null; }
+
+function roundLoad(w, inc){
+  if(w<=0) return 0;
+  return Math.max(inc, Math.round(w/inc)*inc);
+}
+
+/* Deload weeks and Red auto-deload days are deliberately submaximal. They must
+   never become the baseline for the next load target, or every deload would
+   permanently ratchet your working weights down. They stay in the log and in
+   your history — they're just skipped when answering "what should I lift?". */
+const submaximal = s => s.week===7 || (s.readiness && s.readiness.band==="red");
+
+// every logged set for an exercise, newest session first
+function historyFor(exId, opts={}){
+  const out=[];
+  for(let i=S.sessions.length-1;i>=0;i--){
+    const s=S.sessions[i], e=s.entries&&s.entries[exId];
+    if(opts.working && submaximal(s)) continue;
+    if(e && e.some(x=>x && x.reps>0)) out.push({session:s, sets:e.filter(x=>x&&x.reps>0)});
+  }
+  return out;
+}
+
+/* The core session-to-session prescription.
+   Returns {weight, reps, msg, kind} for one set. */
+function prescribe(ex, week, setIdx){
+  const tRir = rirFor(ex, week, setIdx);
+  const hist = historyFor(ex.id, {working:true});   // baseline ignores deload/Red days
+  const [lo,hi] = ex.rep;
+
+  if(!hist.length){
+    return { weight:null, reps:lo, kind:"find",
+      msg:`First time on this lift. Pick a load you could get about ${hi+2} reps with, then stop at RIR ${tRir}. Whatever you log becomes your baseline.` };
+  }
+
+  const last = hist[0];
+  const prev = last.sets[Math.min(setIdx, last.sets.length-1)];
+  const w = prev.weight, r = prev.reps, rir = prev.rir;
+  const ago = last.session.week;
+  const dl  = isEasyWeek(week);
+
+  // Deload / intro week: back the load off deliberately
+  if(dl && week===7){
+    return { weight: roundLoad(w*0.9, ex.inc), reps:r, kind:"deload",
+      msg:`Deload week. Same reps at about 90% of your week-6 load, stopping at RIR ${tRir}. The point is to shed fatigue — do not push.` };
+  }
+
+  // Earned a load jump: hit or beat the top of the range at or under target RIR.
+  // Overshooting by 2+ reps means the load was well short — jump harder than one increment.
+  if(r >= hi && rir <= tRir){
+    const steps = Math.min(3, 1 + Math.floor((r-hi)/2));
+    const bump = ex.inc*steps;
+    return { weight: roundLoad(w+bump, ex.inc), reps:lo, kind:"up",
+      msg: steps>1
+        ? `You got ${r} @ RIR ${rir} in week ${ago} — ${r-hi} reps past the top of the range, so that load was too light. Jump ${bump} lb and restart at ${lo} reps.`
+        : `You hit ${r} @ RIR ${rir} in week ${ago} — top of the range. Add ${bump} lb and restart at ${lo} reps.` };
+  }
+  // In range but left reps in the tank: same load, push closer to failure
+  if(r >= lo && rir > tRir){
+    return { weight:w, reps:r+1, kind:"same",
+      msg:`Last time you stopped at RIR ${rir} but the target is RIR ${tRir}. Same weight — go ${rir-tRir} rep${rir-tRir>1?"s":""} deeper. Aim for ${r+1}.` };
+  }
+  // In range, correct effort: chase one more rep (double progression)
+  if(r >= lo){
+    return { weight:w, reps:r+1, kind:"same",
+      msg:`You got ${r} @ RIR ${rir}. Same weight — beat it. Target ${r+1}, and once you reach ${hi} the weight goes up.` };
+  }
+  // Under the range but they weren't actually near failure: keep the load, try again
+  if(rir >= tRir+1){
+    return { weight:w, reps:lo, kind:"same",
+      msg:`Only ${r} reps last time, but at RIR ${rir} — that was pacing, not the weight. Keep ${w} and take it to RIR ${tRir}.` };
+  }
+  /* Genuinely under the range at target effort. One bad session is noise — sleep,
+     stress, a rushed warm-up — and dropping 8% off a single miss wipes out weeks of
+     progress and makes the load oscillate. Only cut after two in a row at the same weight. */
+  const prior = hist[1] && hist[1].sets[Math.min(setIdx, hist[1].sets.length-1)];
+  const missedTwice = prior && prior.weight >= w && prior.reps < lo && prior.rir <= tRir;
+  if(!missedTwice){
+    return { weight:w, reps:lo, kind:"hold",
+      msg:`${r} reps @ RIR ${rir} came in under the ${lo}-${hi} range. One miss isn't a trend — same weight again. If you miss it twice in a row I'll drop the load for you.` };
+  }
+  return { weight: roundLoad(w*0.92, ex.inc), reps:lo, kind:"down",
+    msg:`Second session in a row under ${lo} reps at ${w} lb. Dropping about 8% to rebuild — you'll pass the old number inside a couple of sessions.` };
+}
+
+/* ---- Readiness / fatigue monitoring (RP-flavoured) ---- */
+const RQ = [
+  {id:"sore", q:"Soreness in today's muscles", a:[
+    ["Never got sore",0],["Healed a while ago",0],["Healed just today",1],["Still sore right now",3]]},
+  {id:"sleep",q:"Sleep last night", a:[["Good",0],["OK",1],["Poor",2]]},
+  {id:"energy",q:"Energy and motivation", a:[["High",0],["Normal",1],["Flat",2],["Drained",3]]},
+  {id:"joint",q:"Joint or connective-tissue pain", a:[["None",0],["Minor niggle",1],["Real pain",3]]}
+];
+
+// Did the last two sessions of this day fail to beat their targets?
+function perfRegression(dayKey){
+  const past = S.sessions.filter(s=>s.day===dayKey && s.done).slice(-2);
+  if(past.length<2) return false;
+  return past.every(s=>{
+    const vals=Object.values(s.entries||{}).flat().filter(x=>x&&x.reps>0);
+    return vals.length && vals.filter(x=>x.missed).length > vals.length/2;
+  });
+}
+
+function readiness(ans, dayKey){
+  let score = RQ.reduce((t,q)=> t + (ans[q.id]??0), 0);
+  const reg = perfRegression(dayKey);
+  if(reg) score += 2;
+  let band, label, advice;
+  if(score<=2){ band="green"; label="Green — go as programmed";
+    advice="You're recovered. Run the session exactly as prescribed and push the target RIR honestly."; }
+  else if(score<=5){ band="yellow"; label="Yellow — trim the session";
+    advice="Accumulating fatigue. Optional (Tier B) work is dropped and compounds get +1 RIR. Keep the hard sets, lose the junk volume."; }
+  else { band="red"; label="Red — auto-deload today";
+    advice="You are under-recovered. Today becomes one set per main lift at ~85% load and +3 RIR. This is a session you bank, not one you win."; }
+  if((ans.joint??0)>=3) advice += " Flag: you reported real joint pain — substitute any movement that reproduces it before you start.";
+  if(reg) advice += " Flag: you missed your targets in your last two "+PROGRAM[dayKey].name+" sessions, which counts against readiness.";
+  return {score, band, label, advice, reg};
+}
+
+// Should he take a deload week early?
+function deloadAdvice(){
+  const done = S.sessions.filter(s=>s.done);
+  const recent = done.slice(-3);
+  const reds = recent.filter(s=>s.readiness&&s.readiness.band==="red").length;
+  if(reds>=2) return "Two of your last three sessions came in Red. RP's rule of thumb is that repeated under-recovery means you're over your MRV — take the deload week now rather than grinding to week 7.";
+  const yellows = done.slice(-4).filter(s=>s.readiness&&s.readiness.band!=="green").length;
+  if(yellows>=4) return "Four sessions in a row below Green. Watch it — if this continues another week, pull the deload forward.";
+  return null;
+}
+
+/* Build today's exercise list, applying tier cuts from readiness + time cap. */
+function buildSession(dayKey, week, band){
+  const day = PROGRAM[dayKey];
+  const cut = band==="red" ? "red" : (band==="yellow" || week===7) ? "trim" : "full";
+  let list = day.ex.filter(ex=> cut==="full" ? true : ex.tier==="A");
+  return list.map(ex=>{
+    let sets = ex.sets, rirAdj = 0;
+    if(cut==="red"){ sets = 1; rirAdj = 3; }
+    else if(cut==="trim" && ex.tier==="A" && ex.sets>2 && week!==7){ sets = ex.sets-1; }
+    else if(cut==="trim"){ rirAdj = ex.rest>=180 ? 1 : 0; }
+    return {ex, sets, rirAdj, loadMul: cut==="red" ? 0.85 : 1};
+  });
+}
+
+// rough duration in minutes
+function estimate(plan){
+  let s = 300; // warm-up
+  plan.forEach(p=> s += p.sets * ((p.ex.rest||90) + 45));
+  return Math.round(s/60);
+}
+
+/* ---------- 4. UI --------------------------------------------------------- */
+
+let view = "home", ui = {};
+const $ = s => document.querySelector(s);
+const el = (h)=>{ const d=document.createElement("div"); d.innerHTML=h; return d.firstElementChild; };
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function go(v){ view=v; render(); window.scrollTo(0,0); }
+
+function render(){
+  const a = $("#app");
+  a.innerHTML = ({home:vHome, session:vSession, history:vHistory, plan:vPlan, settings:vSettings}[view]||vHome)();
+  $("#nav").innerHTML = [["home","🏠","Today"],["plan","📋","Plan"],["history","📈","History"],["settings","⚙️","Settings"]]
+    .map(([v,i,l])=>`<button class="${view===v||(view==="session"&&v==="home")?"on":""}" onclick="go('${v}')"><span class="ic">${i}</span>${l}</button>`).join("");
+  bind();
+}
+
+/* ---- HOME ---- */
+function vHome(){
+  const week = S.week, dayKey = DAY_ORDER[S.dayIdx], day = PROGRAM[dayKey];
+  const kind = weekKind(week);
+  const kindLabel = {intro:"Intro week — build to the loads, don't max them",
+    block1:"Block 1 — accumulation, RIR 0-1 on most sets",
+    deload:"Deload week — mandatory. Shed fatigue.",
+    block2:"Block 2 — intensity techniques added"}[kind];
+  const dl = deloadAdvice();
+  const active = S.active;
+
+  if(active) return `
+    <h1>Session in progress</h1>
+    <div class="card"><div class="row sb"><div>
+      <div style="font-size:19px;font-weight:700">${esc(PROGRAM[active.day].name)} — Week ${active.week}</div>
+      <div class="dim sm">${Object.values(active.entries).flat().filter(x=>x&&x.reps>0).length} sets logged</div>
+    </div><span class="badge b-${active.readiness.band[0]==="g"?"g":active.readiness.band[0]==="y"?"w":"r"}">${esc(active.readiness.band)}</span></div>
+    <button class="pri wide" style="margin-top:14px" onclick="go('session')">Resume workout</button>
+    <button class="ghost wide sm" style="margin-top:8px" onclick="abandon()">Discard this session</button></div>`;
+
+  return `
+    <h1>Week ${week} of ${TOTAL_WEEKS} · Block ${blockOf(week)}</h1>
+    <div class="dim sm">${esc(kindLabel)}</div>
+    ${dl?`<div class="card" style="border-color:var(--warn)"><span class="badge b-w">Fatigue watch</span>
+       <div class="sm" style="margin-top:8px">${esc(dl)}</div></div>`:""}
+
+    <h2>Today's session</h2>
+    <div class="card">
+      <div class="row sb"><div style="font-size:22px;font-weight:700">${esc(day.name)}</div>
+        <select id="daysel" style="width:auto">${DAY_ORDER.map((d,i)=>
+          `<option value="${i}" ${i===S.dayIdx?"selected":""}>${PROGRAM[d].name}</option>`).join("")}</select></div>
+      <div class="dim sm" style="margin-top:6px">${day.muscles.join(" · ")}</div>
+      <div class="hr"></div>
+      <div class="sm dim" style="margin-bottom:8px">Before you start — 4 quick reads. This decides how hard today actually goes.</div>
+      ${RQ.map(q=>`<div style="margin:12px 0"><div class="sm" style="margin-bottom:7px">${esc(q.q)}</div>
+        <div class="chips">${q.a.map((o,i)=>
+          `<button class="chip rq" data-q="${q.id}" data-v="${o[1]}" data-i="${i}">${esc(o[0])}</button>`).join("")}</div></div>`).join("")}
+      <div class="hr"></div>
+      <button class="chip ${ui.short?"on w":""}" id="shortbtn" style="width:100%">${ui.short?"✓ Short on time — Tier A only":"I'm short on time today"}</button>
+      <div id="rdout"></div>
+      <button class="pri wide" id="startbtn" style="margin-top:14px" disabled>Answer all 4 to start</button>
+    </div>
+
+    <h2>Time budget</h2>
+    <div class="card sm">
+      <div class="row sb"><span class="dim">Your cap</span><b>${S.settings.timeCap} min</b></div>
+      <div class="row sb" style="margin-top:6px"><span class="dim">Full session (all exercises)</span>
+        <b class="mono">${estimate(buildSession(dayKey,week,"green"))} min</b></div>
+      <div class="row sb" style="margin-top:6px"><span class="dim">Tier A only (essentials)</span>
+        <b class="mono">${estimate(buildSession(dayKey,week,"yellow"))} min</b></div>
+      <div class="dim xs" style="margin-top:10px">Tier B work is dropped automatically on deload week, on Yellow/Red days, or any time you tap “short on time” at the start of a session.</div>
+    </div>`;
+}
+
+/* ---- SESSION RUNNER ---- */
+function vSession(){
+  const a = S.active; if(!a) return vHome();
+  const plan = a.plan.map(p=>({...p, ex: findEx(a.day, p.exId)}));
+  const i = Math.min(a.idx, plan.length-1);
+  const cur = plan[i], ex = cur.ex, week = a.week;
+  const tech = techFor(ex, week), techInfo = tech?T[tech]:null;
+  const entries = a.entries[ex.id] || [];
+  const doneSets = entries.filter(x=>x&&x.reps>0).length;
+  const ssPartner = ex.ss ? plan.find(p=>p.ex.ss===ex.ss && p.ex.id!==ex.id) : null;
+
+  const rows = Array.from({length:cur.sets}, (_,k)=>{
+    const tRir = Math.min(4, rirFor(ex,week,k) + (cur.rirAdj||0));
+    const pre = prescribe(ex, week, k);
+    const wt = pre.weight==null ? "" : Math.round(pre.weight*(cur.loadMul||1));
+    const e = entries[k] || {};
+    const isLast = k===cur.sets-1;
+    return `<div class="setrow ${e.reps>0?"done":""}">
+      <div class="n">${k+1}</div>
+      <input type="number" inputmode="decimal" placeholder="${wt||"lb"}" value="${e.weight??""}" data-set="${k}" data-f="weight">
+      <input type="number" inputmode="numeric" placeholder="${pre.reps}" value="${e.reps??""}" data-set="${k}" data-f="reps">
+      <select data-set="${k}" data-f="rir">${[0,1,2,3,4].map(v=>
+        `<option value="${v}" ${e.rir===v?"selected":(e.rir==null&&v===tRir?"selected":"")}>RIR ${v}</option>`).join("")}</select>
+      <button class="logset" data-set="${k}">${e.reps>0?"✓":"Log"}</button>
+      ${isLast&&techInfo?`<div style="grid-column:1/-1" class="xs dim">↑ ${esc(techInfo[0])} on this set</div>`:""}
+    </div>`;
+  }).join("");
+
+  const pre0 = prescribe(ex, week, 0);
+  const target = `${cur.sets} × ${ex.rep[0]===ex.rep[1]?ex.rep[0]:ex.rep[0]+"-"+ex.rep[1]}${ex.perLeg?" per leg":""}`;
+  const tRir0 = Math.min(4, rirFor(ex,week,0)+(cur.rirAdj||0));
+
+  return `
+    <div class="row sb" style="margin:14px 0 4px">
+      <button class="ghost sm" onclick="go('home')">‹ Exit</button>
+      <div class="dots">${plan.map((p,k)=>{
+        const d = (a.entries[p.ex.id]||[]).filter(x=>x&&x.reps>0).length >= p.sets;
+        return `<div class="dot ${k===i?"cur":d?"on":""}"></div>`;}).join("")}</div>
+      <span class="badge b-${a.readiness.band==="green"?"g":a.readiness.band==="yellow"?"w":"r"}">${esc(a.readiness.band)}</span>
+    </div>
+
+    <div class="card">
+      <div class="xs dim">${esc(PROGRAM[a.day].name)} · Week ${week} · Exercise ${i+1} of ${plan.length}
+        ${ex.tier==="B"?' · <span class="badge b-d">optional</span>':""}</div>
+      <h1 style="margin:8px 0 2px">${esc(exName(ex))}</h1>
+      ${ssPartner?`<div class="xs" style="color:var(--blue)">Superset ${esc(ex.ss)} with ${esc(exName(ssPartner.ex))} — alternate, minimal rest between</div>`:""}
+
+      <div class="row" style="margin:16px 0 4px;align-items:flex-end;gap:18px">
+        <div><div class="xs dim">Target load</div><div class="big mono">${pre0.weight==null?"—":Math.round(pre0.weight*(cur.loadMul||1))}<span style="font-size:16px" class="dim"> lb</span></div></div>
+        <div><div class="xs dim">Sets × reps</div><div style="font-size:20px;font-weight:700">${target}</div></div>
+        <div><div class="xs dim">Stop at</div><div style="font-size:20px;font-weight:700">RIR ${tRir0}</div></div>
+      </div>
+
+      <div class="coach">${esc(pre0.msg)}${cur.rirAdj?` <b>Readiness adjustment: +${cur.rirAdj} RIR today.</b>`:""}${cur.loadMul<1?` <b>Load cut to ${Math.round(cur.loadMul*100)}%.</b>`:""}</div>
+      ${ex.warm&&ex.warm!=="0"?`<div class="sm dim">Warm-up: ${esc(ex.warm)} light set${ex.warm==="1"?"":"s"} first — not to failure, just to groove the pattern.</div>`:""}
+      ${ex.note?`<div class="sm" style="margin-top:8px">${esc(ex.note)}</div>`:""}
+      ${techInfo?`<div class="tech"><b>${esc(techInfo[0])}</b> — last set only.<br>${esc(techInfo[1])}</div>`:""}
+
+      <div class="hr"></div>
+      <div class="setrow xs dim"><div></div><div>Weight</div><div>Reps</div><div>Actual RIR</div><div></div></div>
+      ${rows}
+
+      <details style="margin-top:10px"><summary>Swap this exercise</summary>
+        <div class="chips" style="margin-top:8px">
+          <button class="chip sub" data-ex="${ex.id}" data-name="">${esc(ex.n)} (default)</button>
+          ${(ex.subs||[]).map(s=>`<button class="chip sub ${S.settings.subs[ex.id]===s?"on":""}" data-ex="${ex.id}" data-name="${esc(s)}">${esc(s)}</button>`).join("")}
+        </div>
+        <div class="xs dim" style="margin-top:8px">Swapping keeps this slot's sets, reps and RIR schedule — only the movement changes. Your load history is tracked per slot, so a swap will reset your target load.</div>
+      </details>
+    </div>
+
+    <div class="row" style="gap:10px;margin-bottom:20px">
+      <button class="grow ghost" onclick="jump(-1)" ${i===0?"disabled":""}>‹ Previous</button>
+      ${i===plan.length-1
+        ? `<button class="grow pri" onclick="finish()">Finish session</button>`
+        : `<button class="grow pri" onclick="jump(1)">Next exercise ›</button>`}
+    </div>`;
+}
+
+function findEx(dayKey, id){ return PROGRAM[dayKey].ex.find(e=>e.id===id); }
+
+/* ---- PLAN ---- */
+function vPlan(){
+  return `<h1>The plan</h1>
+  <div class="card sm">
+    <b>How progression works</b>
+    <div class="dim" style="margin-top:8px">Set counts never change across the 12 weeks — that's straight from Nippard's sheet. Everything progresses two ways:
+    <b>load/reps</b> (double progression: beat the rep target, then the weight goes up) and <b>proximity to failure</b> (RIR drops as the block goes on).</div>
+    <table style="margin-top:12px"><tr><th>Week</th><th>What changes</th></tr>
+    <tr><td>1</td><td>Intro — RIR 1-3. Establish loads.</td></tr>
+    <tr><td>2-6</td><td>Block 1 — RIR 0-1 on most sets, 1-2 on squat/RDL.</td></tr>
+    <tr><td>7</td><td>Deload — RIR back to week 1, load ~90%, Tier B dropped.</td></tr>
+    <tr><td>8-12</td><td>Block 2 — same RIR as Block 1 plus intensity techniques (myo-reps, drop sets, static holds) on the last set of selected exercises.</td></tr></table>
+  </div>
+  ${DAY_ORDER.map(k=>{
+    const d=PROGRAM[k];
+    return `<h2>${esc(d.name)} <span class="dim" style="text-transform:none;letter-spacing:0">— ${estimate(buildSession(k,2,"green"))} min full / ${estimate(buildSession(k,2,"yellow"))} min Tier A</span></h2>
+    <div class="card"><div class="scroll"><table>
+      <tr><th></th><th>Exercise</th><th>Sets×Reps</th><th>RIR</th><th>Rest</th></tr>
+      ${d.ex.map(e=>`<tr class="${e.tier==="B"?"tierB":""}">
+        <td><span class="badge ${e.tier==="A"?"b-b":"b-d"}">${e.tier}</span></td>
+        <td>${esc(exName(e))}${e.ss?` <span class="xs" style="color:var(--blue)">${esc(e.ss)}</span>`:""}
+            ${e.tech?`<div class="xs dim">Block 2: ${esc(T[e.tech][0])}</div>`:""}
+            ${e.src&&e.src!==e.n?`<div class="xs dim">was: ${esc(e.src)}</div>`:""}</td>
+        <td class="mono">${e.sets}×${e.rep[0]===e.rep[1]?e.rep[0]:e.rep[0]+"-"+e.rep[1]}</td>
+        <td class="mono">${e.rir.h.join("/")}</td>
+        <td class="mono">${e.rest?Math.round(e.rest/60*10)/10+"m":"SS"}</td></tr>`).join("")}
+    </table></div></div>`;
+  }).join("")}
+  <div class="card xs dim" style="margin-bottom:24px">
+    <b>What I cut from Nippard's original, and why.</b> Your 35-45 min cap doesn't fit his full prescription (his Upper day runs ~48 min alone).
+    Rather than delete anything permanently, everything he programmed is still here — the lower-yield work is just marked Tier B and drops out
+    automatically when you're short on time or under-recovered. Tier A alone keeps every heavy compound, the side-delt pair, and the arm superset.
+  </div>`;
+}
+
+/* ---- HISTORY ---- */
+function vHistory(){
+  const done = S.sessions.filter(s=>s.done).slice().reverse();
+  if(!done.length) return `<h1>History</h1><div class="card dim">No completed sessions yet. Your logged loads drive every weight target, so the coaching gets sharper after the first week.</div>`;
+  const prs = {};
+  S.sessions.forEach(s=>Object.entries(s.entries||{}).forEach(([id,sets])=>
+    (sets||[]).forEach(x=>{ if(x&&x.reps>0){ const e1=x.weight*(1+x.reps/30);
+      if(!prs[id]||e1>prs[id].e1) prs[id]={e1,w:x.weight,r:x.reps,id}; }})));
+  return `<h1>History</h1>
+  <h2>Best estimated 1RM</h2>
+  <div class="card"><div class="scroll"><table><tr><th>Exercise</th><th>Best set</th><th>Est. 1RM</th></tr>
+  ${Object.values(prs).sort((a,b)=>b.e1-a.e1).map(p=>{
+    let ex; DAY_ORDER.forEach(d=>{const f=findEx(d,p.id); if(f)ex=f;});
+    return `<tr><td>${esc(ex?exName(ex):p.id)}</td><td class="mono">${p.w} × ${p.r}</td><td class="mono">${Math.round(p.e1)}</td></tr>`;
+  }).join("")}</table></div></div>
+  <h2>Sessions</h2>
+  ${done.map(s=>{
+    const n = Object.values(s.entries||{}).flat().filter(x=>x&&x.reps>0).length;
+    const b = s.readiness?.band||"green";
+    return `<div class="card"><div class="row sb">
+      <div><b>${esc(PROGRAM[s.day].name)}</b> <span class="dim sm">· Week ${s.week}</span>
+        <div class="dim xs">${new Date(s.date).toLocaleDateString()} · ${n} sets${s.mins?` · ${s.mins} min`:""}</div></div>
+      <span class="badge b-${b==="green"?"g":b==="yellow"?"w":"r"}">${esc(b)}</span></div>
+      ${s.note?`<div class="sm dim" style="margin-top:8px">${esc(s.note)}</div>`:""}</div>`;
+  }).join("")}
+  <button class="wide ghost" style="margin-bottom:24px" onclick="exportCSV()">Export CSV for Sheets</button>`;
+}
+
+/* ---- SETTINGS ---- */
+function vSettings(){
+  return `<h1>Settings</h1>
+  <div class="card">
+    <div class="sm dim">Session time cap (minutes)</div>
+    <input type="number" id="cap" value="${S.settings.timeCap}" style="margin-top:8px">
+    <div class="xs dim" style="margin-top:8px">Used for the estimates on the Today screen.</div>
+    <div class="hr"></div>
+    <div class="row sb"><span class="sm dim">Current week</span>
+      <input type="number" id="wk" min="1" max="12" value="${S.week}" style="width:90px;text-align:center"></div>
+    <div class="xs dim" style="margin-top:8px">Advance this yourself once you've done all four days of the week.</div>
+  </div>
+  <h2>Your data</h2>
+  <div class="card">
+    <button class="wide ghost" onclick="exportJSON()">Download backup (JSON)</button>
+    <button class="wide ghost" style="margin-top:8px" onclick="exportCSV()">Download log (CSV → Sheets)</button>
+    <button class="wide ghost" style="margin-top:8px" onclick="$('#imp').click()">Restore from backup</button>
+    <input type="file" id="imp" accept=".json" style="display:none">
+    <div class="xs dim" style="margin-top:10px">Everything lives in this browser's storage on this device. Download a backup every couple of weeks — clearing site data wipes the log.</div>
+    <div class="hr"></div>
+    <button class="wide ghost" style="color:var(--bad)" onclick="wipe()">Erase everything</button>
+  </div>
+  <h2>Substitutions in effect</h2>
+  <div class="card sm">${Object.keys(S.settings.subs).length
+    ? Object.entries(S.settings.subs).map(([id,n])=>`<div class="row sb" style="margin:5px 0"><span>${esc(n)}</span>
+        <button class="xs" onclick="unsub('${id}')">reset</button></div>`).join("")
+    : `<span class="dim">None — you're running every exercise as programmed.</span>`}</div>
+  <div style="height:24px"></div>`;
+}
+
+/* ---------- 5. EVENT BINDING --------------------------------------------- */
+function bind(){
+  // readiness chips
+  document.querySelectorAll(".rq").forEach(b=> b.onclick = ()=>{
+    document.querySelectorAll(`.rq[data-q="${b.dataset.q}"]`).forEach(x=>x.className="chip rq");
+    ui.ans = ui.ans||{}; ui.ansI = ui.ansI||{};
+    ui.ans[b.dataset.q] = +b.dataset.v; ui.ansI[b.dataset.q] = b.dataset.i;
+    const band = +b.dataset.v>=3?"r":+b.dataset.v>=1?"w":"g";
+    b.className = "chip rq on "+band;
+    if(Object.keys(ui.ans).length===RQ.length) showReadiness();
+  });
+  // a re-render rebuilds the chips, so repaint any answers already given
+  if(ui.ansI) Object.entries(ui.ansI).forEach(([q,i])=>{
+    const b = document.querySelector(`.rq[data-q="${q}"][data-i="${i}"]`);
+    if(b) b.className = "chip rq on " + (ui.ans[q]>=3?"r":ui.ans[q]>=1?"w":"g");
+  });
+  if(ui.rd && $("#rdout")) showReadiness();
+  const ds = $("#daysel"); if(ds) ds.onchange = ()=>{ S.dayIdx = +ds.value; save(); render(); };
+  const cap = $("#cap"); if(cap) cap.onchange = ()=>{ S.settings.timeCap = +cap.value||45; save(); };
+  const wk  = $("#wk");  if(wk)  wk.onchange  = ()=>{ S.week = Math.max(1,Math.min(12,+wk.value||1)); save(); };
+  const imp = $("#imp"); if(imp) imp.onchange = e=>{
+    const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+    r.onload=()=>{ try{ S={...DEF,...JSON.parse(r.result)}; save(); render(); alert("Backup restored."); }
+                   catch(err){ alert("That file couldn't be read as a backup."); } };
+    r.readAsText(f);
+  };
+  // set logging
+  document.querySelectorAll(".logset").forEach(b=> b.onclick = ()=> logSet(+b.dataset.set));
+  document.querySelectorAll(".sub").forEach(b=> b.onclick = ()=>{
+    if(b.dataset.name) S.settings.subs[b.dataset.ex] = b.dataset.name;
+    else delete S.settings.subs[b.dataset.ex];
+    save(); render();
+  });
+  const sb = $("#startbtn"); if(sb && ui.rd) sb.onclick = start;
+  const short = $("#shortbtn");
+  if(short) short.onclick = ()=>{ ui.short = !ui.short; render(); if(ui.rd) showReadiness(); };
+}
+
+/* Readiness decides effort; the time cap decides breadth. Either one can trim
+   the session, but "short on time" must never make it *harder* than readiness allows. */
+function effBand(band){ return (ui.short && band==="green") ? "yellow" : band; }
+
+function showReadiness(){
+  const dayKey = DAY_ORDER[S.dayIdx];
+  const rd = readiness(ui.ans, dayKey);
+  ui.rd = rd;
+  const plan = buildSession(dayKey, S.week, effBand(rd.band));
+  const b = rd.band==="green"?"g":rd.band==="yellow"?"w":"r";
+  $("#rdout").innerHTML = `<div class="card" style="margin-top:14px;background:var(--card2)">
+    <span class="badge b-${b}">${esc(rd.label)}</span>
+    <div class="sm" style="margin-top:9px">${esc(rd.advice)}</div>
+    <div class="hr"></div>
+    <div class="row sb sm"><span class="dim">Today's session</span>
+      <b>${plan.length} exercises · ~${estimate(plan)} min</b></div>
+    ${ui.short&&rd.band==="green"?`<div class="xs dim" style="margin-top:6px">Trimmed to Tier A for time — your recovery was fine.</div>`:""}
+  </div>`;
+  const sb = $("#startbtn");
+  sb.disabled = false; sb.textContent = "Start "+PROGRAM[dayKey].name;
+  sb.onclick = start;
+}
+
+function start(){
+  const dayKey = DAY_ORDER[S.dayIdx];
+  const plan = buildSession(dayKey, S.week, effBand(ui.rd.band));
+  S.active = { day:dayKey, week:S.week, date:Date.now(), readiness:ui.rd, short:!!ui.short, idx:0, entries:{},
+               plan: plan.map(p=>({exId:p.ex.id, sets:p.sets, rirAdj:p.rirAdj, loadMul:p.loadMul})) };
+  save(); ui.ans=null; ui.ansI=null; ui.rd=null; ui.short=false; go("session");
+}
+
+function logSet(k){
+  const a=S.active, ex=findEx(a.day, a.plan[Math.min(a.idx,a.plan.length-1)].exId);
+  const g=f=>document.querySelector(`[data-set="${k}"][data-f="${f}"]`);
+  const w=parseFloat(g("weight").value), r=parseInt(g("reps").value), rir=parseInt(g("rir").value);
+  if(isNaN(r)||r<=0){ alert("Enter the reps you actually got."); return; }
+  const pre = prescribe(ex, a.week, k);
+  a.entries[ex.id] = a.entries[ex.id]||[];
+  a.entries[ex.id][k] = { weight:isNaN(w)?(pre.weight||0):w, reps:r, rir:isNaN(rir)?0:rir,
+                          missed: r < ex.rep[0] };
+  save();
+  const cur = a.plan[Math.min(a.idx,a.plan.length-1)];
+  if(k < cur.sets-1 && ex.rest) restTimer(ex.rest);
+  render();
+}
+
+function jump(d){ S.active.idx = Math.max(0, Math.min(S.active.plan.length-1, S.active.idx+d)); save(); render(); }
+
+function finish(){
+  const a=S.active;
+  const note = prompt("Any note on this session? (optional)")||"";
+  a.done=true; a.note=note; a.mins=Math.round((Date.now()-a.date)/60000);
+  S.sessions.push(a); S.active=null;
+  // advance the day pointer; roll the week after Pull
+  S.dayIdx = (S.dayIdx+1) % DAY_ORDER.length;
+  if(S.dayIdx===0 && S.week<TOTAL_WEEKS) S.week++;
+  save(); stopTimer(); go("home");
+}
+function abandon(){ if(confirm("Discard this session and everything logged in it?")){ S.active=null; save(); go("home"); } }
+
+/* ---- rest timer (timestamp-based so backgrounding can't drift it) ---- */
+let tEnd=0, tInt=null;
+function restTimer(sec){
+  tEnd = Date.now()+sec*1000;
+  clearInterval(tInt); tInt=setInterval(tick,250); tick();
+}
+function tick(){
+  const left = Math.max(0, Math.round((tEnd-Date.now())/1000));
+  const t=$("#timer"); t.classList.add("on");
+  const m=Math.floor(left/60), s=String(left%60).padStart(2,"0");
+  t.innerHTML = `<span style="font-size:22px" class="mono">${m}:${s}</span><span class="grow">Rest</span>
+    <button onclick="restTimer(${30});event.stopPropagation()" style="padding:7px 10px">+30s</button>
+    <button onclick="stopTimer();event.stopPropagation()" style="padding:7px 10px">Skip</button>`;
+  if(left<=0){ stopTimer(); beep(); }
+}
+function stopTimer(){ clearInterval(tInt); tInt=null; $("#timer").classList.remove("on"); }
+function beep(){
+  try{ const c=new (window.AudioContext||window.webkitAudioContext)();
+    [0,.18,.36].forEach(d=>{ const o=c.createOscillator(), g=c.createGain();
+      o.connect(g); g.connect(c.destination); o.frequency.value=880;
+      g.gain.setValueAtTime(.001,c.currentTime+d);
+      g.gain.exponentialRampToValueAtTime(.3,c.currentTime+d+.02);
+      g.gain.exponentialRampToValueAtTime(.001,c.currentTime+d+.15);
+      o.start(c.currentTime+d); o.stop(c.currentTime+d+.16); });
+  }catch(e){}
+  if(navigator.vibrate) navigator.vibrate([200,80,200]);
+}
+
+/* ---- export / import ---- */
+function dl(name, text, type){
+  const b=new Blob([text],{type}); const u=URL.createObjectURL(b);
+  const a=document.createElement("a"); a.href=u; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),2000);
+}
+function exportJSON(){ dl(`minmax-backup-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(S,null,1), "application/json"); }
+function exportCSV(){
+  const rows=[["Date","Week","Day","Exercise","Set","Weight","Reps","RIR","TargetRIR","RepLow","RepHigh","Readiness","Est1RM"]];
+  S.sessions.filter(s=>s.done).forEach(s=>Object.entries(s.entries||{}).forEach(([id,sets])=>{
+    const ex=findEx(s.day,id); if(!ex) return;
+    (sets||[]).forEach((x,k)=>{ if(!x||!x.reps) return;
+      rows.push([new Date(s.date).toISOString().slice(0,10), s.week, PROGRAM[s.day].name, exName(ex),
+        k+1, x.weight, x.reps, x.rir, rirFor(ex,s.week,k), ex.rep[0], ex.rep[1],
+        s.readiness?.band||"", Math.round(x.weight*(1+x.reps/30))]);
+    });
+  }));
+  dl(`minmax-log-${new Date().toISOString().slice(0,10)}.csv`,
+     rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n"), "text/csv");
+}
+function unsub(id){ delete S.settings.subs[id]; save(); render(); }
+function wipe(){ if(confirm("Erase all sessions, settings and history? This cannot be undone.")){
+  localStorage.removeItem(KEY); S=structuredClone(DEF); go("home"); } }
+
+/* ---- keep the screen awake during a session ---- */
+let wl=null;
+document.addEventListener("visibilitychange", async ()=>{
+  if(document.visibilityState==="visible" && S.active && "wakeLock" in navigator){
+    try{ wl = await navigator.wakeLock.request("screen"); }catch(e){}
+  }
+});
+
+render();
+</script>
