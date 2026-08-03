@@ -362,6 +362,14 @@ function applySub(exId, name){
 
 /* ---------- 3. COACHING ENGINE ------------------------------------------- */
 
+/* RIR is logged as 0/1/2/3+ — four taps fit one row on a phone, and past 3 reps in
+   reserve the exact number is a guess anyway. 3 is therefore a floor ("3 or more"),
+   which is all the progression logic needs: everything keys off whether you came in
+   at or under target, and anything at 3+ is comfortably under. */
+const RIR_MAX = 3;
+const capRir = v => Math.min(RIR_MAX, v);
+const rirTxt = v => v>=RIR_MAX ? RIR_MAX+"+" : String(v);
+
 // RIR prescribed for a given exercise/set/week (inherits the Nippard schedule)
 function rirFor(ex, week, setIdx){
   const a = isEasyWeek(week) ? ex.rir.e : ex.rir.h;
@@ -401,7 +409,7 @@ function prescribe(ex, week, setIdx){
 
   if(!hist.length){
     return { weight:null, reps:lo, kind:"find",
-      msg:`First time on this lift. Pick a load you could get about ${hi+2} reps with, then stop at RIR ${tRir}. Whatever you log becomes your baseline.` };
+      msg:`First time on this lift. Pick a load you could get about ${hi+2} reps with, then stop at RIR ${rirTxt(tRir)}. Whatever you log becomes your baseline.` };
   }
 
   const last = hist[0];
@@ -413,14 +421,14 @@ function prescribe(ex, week, setIdx){
   // Deload / intro week: back the load off deliberately
   if(dl && week===7){
     return { weight: roundLoad(w*0.9, ex.inc), reps:r, kind:"deload",
-      msg:`Deload week. Same reps at about 90% of your week-6 load, stopping at RIR ${tRir}. The point is to shed fatigue — do not push.` };
+      msg:`Deload week. Same reps at about 90% of your week-6 load, stopping at RIR ${rirTxt(tRir)}. The point is to shed fatigue — do not push.` };
   }
 
   /* At or past the top of the rep range means the load is too light — regardless of
      RIR. Chasing still more reps on a 4-6 exercise defeats the point of the range.
      Reps over the top AND unused RIR both say the same thing, so both feed the jump. */
   if(r >= hi){
-    const over = r - hi, slack = Math.max(0, rir - tRir);
+    const over = r - hi, slack = Math.max(0, capRir(rir) - tRir);
     const steps = Math.min(3, 1 + Math.floor((over + slack)/2));
     const bump = ex.inc*steps;
     const why = over && slack ? `${over} rep${over>1?"s":""} past the top of the range and still ${slack} in reserve`
@@ -428,22 +436,22 @@ function prescribe(ex, week, setIdx){
               : slack         ? `the top of the range with ${slack} rep${slack>1?"s":""} still in reserve`
                               : `the top of the range`;
     return { weight: roundLoad(w+bump, ex.inc), reps:lo, kind:"up",
-      msg:`Week ${ago} you got ${r} @ RIR ${rir} — ${why}. Add ${bump} lb and restart at ${lo} reps.` };
+      msg:`Week ${ago} you got ${r} @ RIR ${rirTxt(capRir(rir))} — ${why}. Add ${bump} lb and restart at ${lo} reps.` };
   }
   // In range but left reps in the tank: same load, push closer to failure
   if(r >= lo && rir > tRir){
     return { weight:w, reps:r+1, kind:"same",
-      msg:`Last time you stopped at RIR ${rir} but the target is RIR ${tRir}. Same weight — go ${rir-tRir} rep${rir-tRir>1?"s":""} deeper. Aim for ${r+1}.` };
+      msg:`Last time you stopped at RIR ${rirTxt(capRir(rir))} but the target is RIR ${rirTxt(tRir)}. Same weight — go ${rir-tRir} rep${rir-tRir>1?"s":""} deeper. Aim for ${r+1}.` };
   }
   // In range, correct effort: chase one more rep (double progression)
   if(r >= lo){
     return { weight:w, reps:r+1, kind:"same",
-      msg:`You got ${r} @ RIR ${rir}. Same weight — beat it. Target ${r+1}, and once you reach ${hi} the weight goes up.` };
+      msg:`You got ${r} @ RIR ${rirTxt(capRir(rir))}. Same weight — beat it. Target ${r+1}, and once you reach ${hi} the weight goes up.` };
   }
   // Under the range but they weren't actually near failure: keep the load, try again
   if(rir >= tRir+1){
     return { weight:w, reps:lo, kind:"same",
-      msg:`Only ${r} reps last time, but at RIR ${rir} — that was pacing, not the weight. Keep ${w} and take it to RIR ${tRir}.` };
+      msg:`Only ${r} reps last time, but at RIR ${rirTxt(capRir(rir))} — that was pacing, not the weight. Keep ${w} and take it to RIR ${rirTxt(tRir)}.` };
   }
   /* Genuinely under the range at target effort. One bad session is noise — sleep,
      stress, a rushed warm-up — and dropping 8% off a single miss wipes out weeks of
@@ -452,7 +460,7 @@ function prescribe(ex, week, setIdx){
   const missedTwice = prior && prior.weight >= w && prior.reps < lo && prior.rir <= tRir;
   if(!missedTwice){
     return { weight:w, reps:lo, kind:"hold",
-      msg:`${r} reps @ RIR ${rir} came in under the ${lo}-${hi} range. One miss isn't a trend — same weight again. If you miss it twice in a row I'll drop the load for you.` };
+      msg:`${r} reps @ RIR ${rirTxt(capRir(rir))} came in under the ${lo}-${hi} range. One miss isn't a trend — same weight again. If you miss it twice in a row I'll drop the load for you.` };
   }
   return { weight: roundLoad(w*0.92, ex.inc), reps:lo, kind:"down",
     msg:`Second session in a row under ${lo} reps at ${w} lb. Dropping about 8% to rebuild — you'll pass the old number inside a couple of sessions.` };
@@ -572,9 +580,27 @@ function vHome(){
     <button class="pri wide" style="margin-top:14px" onclick="go('session')">Resume workout</button>
     <button class="ghost wide sm" style="margin-top:8px" onclick="abandon()">Discard this session</button></div>`;
 
+  /* A backup you believe in but that silently stopped working is worse than no
+     backup, so sync trouble is surfaced on the screen you actually look at. */
+  const syncBad = S.syncMsg && /fail|reject|Forbid|GitHub \d|Tap Pull/i.test(S.syncMsg);
+  const stale = ghToken() && S.sessions.length && S.syncedAt &&
+                (Date.now()-S.syncedAt) > 12096e5;   // 14 days
+
   return `
     <h1>Week ${week} of ${TOTAL_WEEKS} · Block ${blockOf(week)}</h1>
     <div class="dim sm">${esc(kindLabel)}</div>
+    ${syncBad?`<div class="card" style="border-color:var(--bad)">
+       <span class="badge b-r">sync problem</span>
+       <div class="sm" style="margin-top:8px">${esc(S.syncMsg)}</div>
+       <button class="ghost wide sm" style="margin-top:10px" onclick="go('settings')">Open sync settings</button></div>`:""}
+    ${!ghToken()&&S.sessions.length>=2?`<div class="card" style="border-color:var(--warn)">
+       <span class="badge b-w">no backup</span>
+       <div class="sm" style="margin-top:8px">${S.sessions.length} sessions live only on this phone. Clearing site data would erase them.</div>
+       <button class="ghost wide sm" style="margin-top:10px" onclick="go('settings')">Set up backup</button></div>`:""}
+    ${stale&&!syncBad?`<div class="card" style="border-color:var(--warn)">
+       <span class="badge b-w">not synced recently</span>
+       <div class="sm" style="margin-top:8px">Last backup ${new Date(S.syncedAt).toLocaleDateString()}. Your token may have expired.</div>
+       <button class="ghost wide sm" style="margin-top:10px" onclick="syncPush()">Try pushing now</button></div>`:""}
     ${dl?`<div class="card" style="border-color:var(--warn)"><span class="badge b-w">Fatigue watch</span>
        <div class="sm" style="margin-top:8px">${esc(dl)}</div></div>`:""}
 
@@ -618,7 +644,7 @@ function vSession(){
   const ssPartner = ex.ss ? plan.find(p=>p.ex.ss===ex.ss && p.ex.id!==ex.id) : null;
 
   const rows = Array.from({length:cur.sets}, (_,k)=>{
-    const tRir = Math.min(4, rirFor(ex,week,k) + (cur.rirAdj||0));
+    const tRir = capRir(rirFor(ex,week,k) + (cur.rirAdj||0));
     const pre = prescribe(ex, week, k);
     const wt = pre.weight==null ? "" : Math.round(pre.weight*(cur.loadMul||1));
     const e = entries[k] || {};
@@ -628,7 +654,7 @@ function vSession(){
     return `<div class="setblk ${e.reps>0?"done":""}">
       <div class="row sb xs" style="margin-bottom:8px">
         <b>Set ${k+1}</b>
-        <span class="dim">target ${pre.reps}${ex.perLeg?"/leg":""} rep${pre.reps===1?"":"s"} · stop at RIR ${tRir}</span>
+        <span class="dim">target ${pre.reps}${ex.perLeg?"/leg":""} rep${pre.reps===1?"":"s"} · stop at RIR ${rirTxt(tRir)}</span>
       </div>
       <div class="setrow">
         <input type="number" inputmode="decimal" placeholder="${wt||"lb"}" value="${draft(ex.id,k,"weight") ?? e.weight ?? ""}" data-set="${k}" data-f="weight">
@@ -639,8 +665,8 @@ function vSession(){
         ${chosen==null ? "RIR you actually hit — tap one (dashed = target)"
           : e.reps>0 ? "Logged at RIR "+chosen : "RIR "+chosen+" selected — now tap Log"}
       </div>
-      <div class="chips">${[0,1,2,3,4].map(v=>
-        `<button class="chip rirc ${v===tRir?"tgt":""} ${chosen===v?"on":""}" data-set="${k}" data-ex="${ex.id}" data-rir="${v}">${v}</button>`).join("")}</div>
+      <div class="chips">${[0,1,2,3].map(v=>
+        `<button class="chip rirc ${v===tRir?"tgt":""} ${chosen===v?"on":""}" data-set="${k}" data-ex="${ex.id}" data-rir="${v}">${rirTxt(v)}</button>`).join("")}</div>
       ${isLast&&techInfo?`<div class="xs dim" style="margin-top:8px">↑ ${esc(techInfo[0])} on this set</div>`:""}
     </div>`;
   }).join("");
@@ -649,8 +675,8 @@ function vSession(){
   const target = `${cur.sets} × ${ex.rep[0]===ex.rep[1]?ex.rep[0]:ex.rep[0]+"-"+ex.rep[1]}${ex.perLeg?" per leg":""}`;
   /* RIR often differs per set (Nippard ramps it: 0/1/1 on pull-ups). Showing only
      set 1's target here contradicted the per-set targets below it. */
-  const rirSeq = Array.from({length:cur.sets},(_,k)=>Math.min(4, rirFor(ex,week,k)+(cur.rirAdj||0)));
-  const rirLabel = new Set(rirSeq).size===1 ? `RIR ${rirSeq[0]}` : rirSeq.map(v=>v).join(" → ");
+  const rirSeq = Array.from({length:cur.sets},(_,k)=>capRir(rirFor(ex,week,k)+(cur.rirAdj||0)));
+  const rirLabel = new Set(rirSeq).size===1 ? `RIR ${rirTxt(rirSeq[0])}` : rirSeq.map(rirTxt).join(" → ");
 
   return `
     <div class="row sb" style="margin:14px 0 4px">
@@ -881,9 +907,9 @@ function vEdit(){
               <input type="number" inputmode="decimal" value="${x.weight??""}" data-e="${id}" data-k="${k}" data-f="weight">
               <input type="number" inputmode="numeric" value="${x.reps??""}" data-e="${id}" data-k="${k}" data-f="reps">
             </div>
-            <div class="xs dim" style="margin:8px 0 5px">RIR logged: ${x.rir??"—"}</div>
-            <div class="chips">${[0,1,2,3,4].map(v=>
-              `<button class="chip erir ${x.rir===v?"on":""}" data-e="${id}" data-k="${k}" data-rir="${v}">${v}</button>`).join("")}</div>
+            <div class="xs dim" style="margin:8px 0 5px">RIR logged: ${x.rir==null?"—":rirTxt(capRir(x.rir))}</div>
+            <div class="chips">${[0,1,2,3].map(v=>
+              `<button class="chip erir ${capRir(x.rir)===v?"on":""}" data-e="${id}" data-k="${k}" data-rir="${v}">${rirTxt(v)}</button>`).join("")}</div>
           </div>` : "").join("")}
       </div>`;
     }).join("")}
@@ -1275,7 +1301,9 @@ async function syncPush(quiet){
       const cur = await ghGet(path);
       await ghPut(path, body, cur?.sha);
     }
-    S.syncedAt = Date.now(); S.syncMsg = null; save(); if(!quiet) render();
+    S.syncedAt = Date.now();
+    S.syncMsg = `Saved ${S.sessions.length} session${S.sessions.length===1?"":"s"} to ${GH.repo}/logs/${P.cur}.csv`;
+    save(); if(!quiet) render();
     return true;
   }catch(e){ setSt("Sync failed: "+e.message); save(); return false; }
 }
