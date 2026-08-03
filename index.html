@@ -164,10 +164,10 @@ const PROGRAM = {
   ]},
 
   lower: { name:"Lower", muscles:["hamstrings","quads","calves","glutes"], ex:[
-    {id:"legcurl", n:"Lying Leg Curl", tier:"A", sets:3, rep:[6,8], rest:90, inc:5, warm:"1-2",
+    {id:"legcurl", n:"Standing Leg Curl", tier:"A", sets:3, rep:[6,8], rest:90, inc:5, warm:"1-2",
      rir:{e:[0,1,1],h:[0,0,0]}, tech:"drop2", src:"Seated Leg Curl",
-     subs:["Seated Leg Curl","Nordic Ham Curl","DB Leg Curl"],
-     note:"If seated: lean forward over the machine for maximum hamstring stretch."},
+     subs:["Lying Leg Curl","Seated Leg Curl","Nordic Ham Curl"],
+     note:"One leg at a time. Keep the hips pinned to the pad — don't let them swing to help. Squeeze hard at the top."},
 
     {id:"squat",   n:"Barbell Back Squat", tier:"A", sets:2, rep:[4,6], rest:240, inc:10, warm:"2-3",
      rir:{e:[2,3],h:[1,2]}, src:"Hack Squat",
@@ -316,6 +316,7 @@ function save(){ localStorage.setItem(KEY(P.cur), JSON.stringify(S)); }
 function switchProfile(name){
   if(S.active && !confirm(`${P.cur} has a session in progress. Switch to ${name} anyway? The session stays saved.`)) return;
   P.cur = name; saveProfiles(); S = load(); ui = {}; go("home");
+  if(typeof syncAuto==="function") syncAuto();   // pull that profile's log too
 }
 function addProfile(){
   const n = (prompt("Name for the new profile?")||"").trim();
@@ -630,12 +631,13 @@ function vSession(){
         <span class="dim">target ${pre.reps}${ex.perLeg?"/leg":""} rep${pre.reps===1?"":"s"} · stop at RIR ${tRir}</span>
       </div>
       <div class="setrow">
-        <input type="number" inputmode="decimal" placeholder="${wt||"lb"}" value="${e.weight??""}" data-set="${k}" data-f="weight">
-        <input type="number" inputmode="numeric" placeholder="${pre.reps} reps" value="${e.reps??""}" data-set="${k}" data-f="reps">
+        <input type="number" inputmode="decimal" placeholder="${wt||"lb"}" value="${draft(ex.id,k,"weight") ?? e.weight ?? ""}" data-set="${k}" data-f="weight">
+        <input type="number" inputmode="numeric" placeholder="${pre.reps} reps" value="${draft(ex.id,k,"reps") ?? e.reps ?? ""}" data-set="${k}" data-f="reps">
         <button class="logset" data-set="${k}">${e.reps>0?"✓":"Log"}</button>
       </div>
-      <div class="xs ${chosen==null?"needrir":"dim"}" style="margin:9px 0 5px">
-        ${chosen==null?"RIR you actually hit — tap one (dashed = target)":"Logged at RIR "+chosen}
+      <div class="xs rirlbl ${chosen==null?"needrir":"dim"}" style="margin:9px 0 5px">
+        ${chosen==null ? "RIR you actually hit — tap one (dashed = target)"
+          : e.reps>0 ? "Logged at RIR "+chosen : "RIR "+chosen+" selected — now tap Log"}
       </div>
       <div class="chips">${[0,1,2,3,4].map(v=>
         `<button class="chip rirc ${v===tRir?"tgt":""} ${chosen===v?"on":""}" data-set="${k}" data-ex="${ex.id}" data-rir="${v}">${v}</button>`).join("")}</div>
@@ -698,6 +700,25 @@ function vSession(){
 }
 
 function findEx(dayKey, id){ return PROGRAM[dayKey].ex.find(e=>e.id===id); }
+
+/* Typed-but-not-yet-logged weight and reps.
+   Any re-render of the session screen rebuilds the inputs from saved state, so
+   without this a tap on an RIR chip (or a swap) threw away numbers you had already
+   keyed in. Every re-render path calls captureDraft() first. */
+const draft = (exId,k,f) => ui.draft?.[`${exId}:${k}:${f}`];
+function captureDraft(){
+  ui.draft = ui.draft||{};
+  document.querySelectorAll("[data-set][data-f]").forEach(inp=>{
+    const ex = S.active && S.active.plan[Math.min(S.active.idx,S.active.plan.length-1)]?.exId;
+    if(!ex) return;
+    if(inp.value!=="") ui.draft[`${ex}:${inp.dataset.set}:${inp.dataset.f}`] = inp.value;
+    else delete ui.draft[`${ex}:${inp.dataset.set}:${inp.dataset.f}`];
+  });
+}
+function clearDraft(exId,k){
+  if(!ui.draft) return;
+  ["weight","reps"].forEach(f=> delete ui.draft[`${exId}:${k}:${f}`]);
+}
 
 /* ---- PLAN ---- */
 function vPlan(){
@@ -1016,11 +1037,13 @@ function bind(){
     render();
   });
   document.querySelectorAll(".rirc").forEach(b=> b.onclick = ()=>{
+    captureDraft();                       // keep anything typed but not yet logged
     ui.rirSel = ui.rirSel||{};
     ui.rirSel[`${b.dataset.ex}:${b.dataset.set}`] = +b.dataset.rir;
     render();
   });
   document.querySelectorAll(".sub").forEach(b=> b.onclick = ()=>{
+    captureDraft();
     applySub(b.dataset.ex, b.dataset.name);
     save(); render();
   });
@@ -1076,13 +1099,14 @@ function logSet(k){
   a.entries[ex.id][k] = { weight:isNaN(w)?(pre.weight||0):w, reps:r, rir,
                           rest:restTaken, missed: r < ex.rep[0] };
   a.lastSetAt = Date.now();
+  clearDraft(ex.id, k);
   save();
   const cur = a.plan[Math.min(a.idx,a.plan.length-1)];
   if(k < cur.sets-1 && ex.rest) restTimer(ex.rest);
   render();
 }
 
-function jump(d){ S.active.idx = Math.max(0, Math.min(S.active.plan.length-1, S.active.idx+d)); save(); render(); }
+function jump(d){ captureDraft(); S.active.idx = Math.max(0, Math.min(S.active.plan.length-1, S.active.idx+d)); save(); render(); }
 
 /* RIR tells you how hard each SET was. It says nothing about whether the session
    as a whole produced a useful stimulus, or whether you can recover from it — which
@@ -1269,6 +1293,30 @@ async function syncPull(){
   }catch(e){ S.syncMsg="Pull failed: "+e.message; render(); }
 }
 
+/* Run on load. Opening the app should be enough to see your data on a new device —
+   having to remember a manual Pull is exactly how you end up training off a stale log.
+   Never silently overwrites: it adopts only when there's nothing local to lose, and
+   otherwise asks. */
+async function syncAuto(){
+  if(!ghToken()) return;
+  if(S.active) return;                       // never disturb a session in progress
+  try{
+    const f = await ghGet(jsonPath(P.cur));
+    if(!f) { if(S.sessions.length) syncPush(true); return; }   // first ever push
+    const r = JSON.parse(f.text);
+    const remote = (r.sessions||[]).length, local = S.sessions.length;
+    if(remote > local && local === 0){
+      S = {...DEF, ...r, settings:{...DEF.settings, ...(r.settings||{})}};
+      S.syncedAt = Date.now(); save(); render();
+    } else if(remote > local){
+      S.syncMsg = `GitHub has ${remote} sessions for ${P.cur}, this device has ${local}. Tap Pull in Settings to take the GitHub copy.`;
+      render();
+    } else if(local > remote){
+      syncPush(true);                        // this device is ahead — back it up
+    }
+  }catch(e){ S.syncMsg = "Sync check failed: "+e.message; render(); }
+}
+
 function saveToken(v){
   const t=(v||"").trim();
   if(t) localStorage.setItem(TKEY,t); else localStorage.removeItem(TKEY);
@@ -1292,4 +1340,5 @@ document.addEventListener("visibilitychange", async ()=>{
 });
 
 render();
+syncAuto();
 </script>
