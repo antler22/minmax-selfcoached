@@ -415,15 +415,19 @@ function prescribe(ex, week, setIdx){
       msg:`Deload week. Same reps at about 90% of your week-6 load, stopping at RIR ${tRir}. The point is to shed fatigue — do not push.` };
   }
 
-  // Earned a load jump: hit or beat the top of the range at or under target RIR.
-  // Overshooting by 2+ reps means the load was well short — jump harder than one increment.
-  if(r >= hi && rir <= tRir){
-    const steps = Math.min(3, 1 + Math.floor((r-hi)/2));
+  /* At or past the top of the rep range means the load is too light — regardless of
+     RIR. Chasing still more reps on a 4-6 exercise defeats the point of the range.
+     Reps over the top AND unused RIR both say the same thing, so both feed the jump. */
+  if(r >= hi){
+    const over = r - hi, slack = Math.max(0, rir - tRir);
+    const steps = Math.min(3, 1 + Math.floor((over + slack)/2));
     const bump = ex.inc*steps;
+    const why = over && slack ? `${over} rep${over>1?"s":""} past the top of the range and still ${slack} in reserve`
+              : over          ? `${over} rep${over>1?"s":""} past the top of the range`
+              : slack         ? `the top of the range with ${slack} rep${slack>1?"s":""} still in reserve`
+                              : `the top of the range`;
     return { weight: roundLoad(w+bump, ex.inc), reps:lo, kind:"up",
-      msg: steps>1
-        ? `You got ${r} @ RIR ${rir} in week ${ago} — ${r-hi} reps past the top of the range, so that load was too light. Jump ${bump} lb and restart at ${lo} reps.`
-        : `You hit ${r} @ RIR ${rir} in week ${ago} — top of the range. Add ${bump} lb and restart at ${lo} reps.` };
+      msg:`Week ${ago} you got ${r} @ RIR ${rir} — ${why}. Add ${bump} lb and restart at ${lo} reps.` };
   }
   // In range but left reps in the tank: same load, push closer to failure
   if(r >= lo && rir > tRir){
@@ -1126,19 +1130,30 @@ function vWrap(){
 }
 function abandon(){ if(confirm("Discard this session and everything logged in it?")){ S.active=null; save(); go("home"); } }
 
-/* ---- rest timer (timestamp-based so backgrounding can't drift it) ---- */
-let tEnd=0, tInt=null;
+/* ---- rest timer (timestamp-based so backgrounding can't drift it) ----
+   The buttons are built ONCE. They used to be re-created by innerHTML on every
+   250ms tick, so a tap that spanned a redraw landed on an element that no longer
+   existed and no click ever fired — which is why Skip felt unreliable on a phone. */
+let tEnd=0, tInt=null, tBuilt=false;
+function buildTimer(){
+  const t=$("#timer");
+  t.innerHTML = `<span style="font-size:22px" class="mono" id="tleft">0:00</span>
+    <span class="grow">Rest</span>
+    <button id="tplus" style="padding:7px 10px">+30s</button>
+    <button id="tskip" style="padding:7px 10px">Skip</button>`;
+  $("#tplus").onclick = e=>{ e.stopPropagation(); tEnd += 30000; tick(); };   // extend, don't restart
+  $("#tskip").onclick = e=>{ e.stopPropagation(); stopTimer(); };
+  tBuilt = true;
+}
 function restTimer(sec){
+  if(!tBuilt) buildTimer();
   tEnd = Date.now()+sec*1000;
   clearInterval(tInt); tInt=setInterval(tick,250); tick();
 }
 function tick(){
   const left = Math.max(0, Math.round((tEnd-Date.now())/1000));
   const t=$("#timer"); t.classList.add("on");
-  const m=Math.floor(left/60), s=String(left%60).padStart(2,"0");
-  t.innerHTML = `<span style="font-size:22px" class="mono">${m}:${s}</span><span class="grow">Rest</span>
-    <button onclick="restTimer(${30});event.stopPropagation()" style="padding:7px 10px">+30s</button>
-    <button onclick="stopTimer();event.stopPropagation()" style="padding:7px 10px">Skip</button>`;
+  $("#tleft").textContent = `${Math.floor(left/60)}:${String(left%60).padStart(2,"0")}`;
   if(left<=0){ stopTimer(); beep(); }
 }
 function stopTimer(){ clearInterval(tInt); tInt=null; $("#timer").classList.remove("on"); }
