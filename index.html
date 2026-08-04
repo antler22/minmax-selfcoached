@@ -286,6 +286,8 @@ const blockOf    = w => w<=7 ? 1 : 2;
 
 /* ---------- 2. STATE / PERSISTENCE --------------------------------------- */
 
+const BUILD = "2026-08-03e";   // shown in Settings so a stale cache is obvious
+
 /* Each profile is a completely separate log under its own storage key, so two
    people sharing the phone never contaminate each other's weight targets. */
 const PKEY = "minmax_profiles";
@@ -974,6 +976,16 @@ function vSettings(){
       <input type="number" id="wk" min="1" max="12" value="${S.week}" style="width:90px;text-align:center"></div>
     <div class="xs dim" style="margin-top:8px">Advance this yourself once you've done all four days of the week.</div>
   </div>
+  <h2>This copy</h2>
+  <div class="card sm">
+    <div class="row sb"><span class="dim">Build</span><b class="mono">${BUILD}</b></div>
+    <div class="row sb" style="margin-top:6px"><span class="dim">Served from</span>
+      <b class="mono xs" style="text-align:right">${esc(location.host||"local file")}</b></div>
+    <div class="xs dim" style="margin-top:9px">Your log is stored per-address. If you've opened this app at more than one
+      web address, each one keeps its own separate history. The address to keep is
+      <b>antler22.github.io</b>.</div>
+  </div>
+
   <h2>GitHub sync</h2>
   <div class="card">
     <div class="sm">${ghToken()
